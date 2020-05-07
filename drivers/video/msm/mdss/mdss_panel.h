@@ -47,7 +47,7 @@ struct panel_id {
 
 static inline const char *mdss_panel2str(u32 panel)
 {
-	static const char const *names[] = {
+	static const char *names[] = {
 #define PANEL_NAME(n) [n ## _PANEL] = __stringify(n)
 		PANEL_NAME(MIPI_VIDEO),
 		PANEL_NAME(MIPI_CMD),
@@ -308,9 +308,6 @@ struct mipi_panel_info {
 	u32  init_delay;
 	u32  post_init_delay;
 	u32  phy_lane_clamp_mask;	/*DSI physical lane clamp mask*/
-#ifdef CONFIG_MACH_YULONG
-	char has_tps65132;
-#endif
 };
 
 struct edp_panel_info {
@@ -369,8 +366,6 @@ struct mdss_mdp_pp_tear_check {
 	u32 rd_ptr_irq;
 	u32 refx100;
 };
-
-struct mdss_livedisplay_ctx;
 
 struct mdss_panel_info {
 	u32 xres;
@@ -447,8 +442,6 @@ struct mdss_panel_info {
 
 	/* debugfs structure for the panel */
 	struct mdss_panel_debugfs_info *debugfs_info;
-
-	struct mdss_livedisplay_ctx *livedisplay;
 };
 
 struct mdss_panel_data {

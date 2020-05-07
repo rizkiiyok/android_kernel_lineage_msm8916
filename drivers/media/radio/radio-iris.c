@@ -51,6 +51,7 @@ static char rt_ert_flag;
 static char formatting_dir;
 static unsigned char sig_blend = CTRL_ON;
 static DEFINE_MUTEX(iris_fm);
+static int transport_ready = -1;
 
 module_param(rds_buf, uint, 0);
 MODULE_PARM_DESC(rds_buf, "RDS buffer entries: *100*");
@@ -3138,6 +3139,7 @@ static int set_low_power_mode(struct iris_device *radio, int power_mode)
 
 	int rds_grps_proc = 0x00;
 	int retval = 0;
+	struct hci_fm_rds_grp_req grp_3a;
 
 	if (unlikely(radio == NULL)) {
 		FMDERR(":radio is null");
@@ -3147,6 +3149,13 @@ static int set_low_power_mode(struct iris_device *radio, int power_mode)
 	if (radio->power_mode != power_mode) {
 
 		if (power_mode) {
+			memcpy(&grp_3a, &radio->rds_grp,
+					sizeof(struct hci_fm_rds_grp_req));
+			/* Disable 3A group */
+			grp_3a.rds_grp_enable_mask &= ~FM_RDS_3A_GRP;
+			retval = hci_fm_rds_grp(&grp_3a, radio->fm_hdev);
+			if (retval < 0)
+				FMDERR("error in disable 3A group mask\n");
 			radio->event_mask = 0x00;
 			if (radio->af_jump_bit)
 				rds_grps_proc = 0x00 | AF_JUMP_ENABLE;
@@ -3162,7 +3171,11 @@ static int set_low_power_mode(struct iris_device *radio, int power_mode)
 			retval = hci_conf_event_mask(&radio->event_mask,
 				radio->fm_hdev);
 		} else {
-
+			/* Enable RDS group to normal */
+			retval = hci_fm_rds_grp(&radio->rds_grp,
+							radio->fm_hdev);
+			if (retval < 0)
+				FMDERR("error in enable 3A group mask\n");
 			radio->event_mask = SIG_LEVEL_INTR |
 					RDS_SYNC_INTR | AUDIO_CTRL_INTR;
 			retval = hci_conf_event_mask(&radio->event_mask,
@@ -5426,6 +5439,15 @@ static const struct v4l2_ioctl_ops iris_ioctl_ops = {
 	.vidioc_g_ext_ctrls           = iris_vidioc_g_ext_ctrls,
 };
 
+#ifndef MODULE
+extern int radio_hci_smd_init(void);
+static int iris_fops_open(struct file *f) {
+	if (transport_ready < 0)
+		transport_ready = radio_hci_smd_init();
+	return transport_ready;
+}
+#endif
+
 static const struct v4l2_file_operations iris_fops = {
 	.owner = THIS_MODULE,
 	.unlocked_ioctl = video_ioctl2,
@@ -5433,6 +5455,9 @@ static const struct v4l2_file_operations iris_fops = {
 	.compat_ioctl32 = v4l2_compat_ioctl32,
 #endif
 	.release        = iris_fops_release,
+#ifndef MODULE
+	.open           = iris_fops_open,
+#endif
 };
 
 static struct video_device iris_viddev_template = {

@@ -26,13 +26,7 @@
 #include <linux/workqueue.h>
 #include <linux/freezer.h>
 
-#ifdef CONFIG_YL_POWEROFF_ALARM
-#include <linux/yl_params.h>
-
-#define YL_PARAM_BUF_SZ		512
-#endif
-
-#define ALARM_DELTA 120
+#define ALARM_DELTA 300
 
 /**
  * struct alarm_base - Alarm timer bases
@@ -63,44 +57,6 @@ static DEFINE_SPINLOCK(rtcdev_lock);
 static unsigned long power_on_alarm;
 static struct mutex power_on_alarm_lock;
 
-#ifdef CONFIG_YL_POWEROFF_ALARM
-static int set_yl_power_on_alarm(struct rtc_wkalrm *alarm)
-{
-	int rc;
-	unsigned long secs;
-	u8 value[4] = {0};
-	u8 param_buf[YL_PARAM_BUF_SZ] = "RETURNZERO";
-
-	if (alarm) {
-		rtc_tm_to_time(&alarm->time, &secs);
-
-		value[0] = secs & 0xFF;
-		value[1] = (secs >> 8) & 0xFF;
-		value[2] = (secs >> 16) & 0xFF;
-		value[3] = (secs >> 24) & 0xFF;
-	}
-
-	rc = yl_params_kernel_read(param_buf, YL_PARAM_BUF_SZ);
-	if (rc != YL_PARAM_BUF_SZ) {
-		return -EFAULT;
-	}
-
-	if (alarm) {
-		param_buf[RETURNZERO_ALARM_ASSIGNED] = 1;
-	} else {
-		param_buf[RETURNZERO_ALARM_ASSIGNED] = 0;
-	}
-	memcpy(&param_buf[RETURNZERO_ALARM_TIME], value, 4);
-
-	rc = yl_params_kernel_write(param_buf, YL_PARAM_BUF_SZ);
-	if (rc != YL_PARAM_BUF_SZ) {
-		return -EFAULT;
-	}
-
-	return 0;
-}
-#endif
-
 void set_power_on_alarm(long secs, bool enable)
 {
 	int rc;
@@ -116,9 +72,6 @@ void set_power_on_alarm(long secs, bool enable)
 	if (enable) {
 			power_on_alarm = secs;
 	} else {
-#ifdef CONFIG_YL_POWEROFF_ALARM
-		set_yl_power_on_alarm(NULL);
-#endif
 		if (power_on_alarm == secs)
 			power_on_alarm = 0;
 		else
@@ -149,12 +102,6 @@ void set_power_on_alarm(long secs, bool enable)
 	rc = rtc_set_alarm(rtcdev, &alarm);
 	if (rc)
 		goto disable_alarm;
-
-#ifdef CONFIG_YL_POWEROFF_ALARM
-	rc = set_yl_power_on_alarm(&alarm);
-	if (rc)
-		goto disable_alarm;
-#endif
 
 	mutex_unlock(&power_on_alarm_lock);
 	return;
@@ -708,18 +655,22 @@ static int alarm_timer_create(struct k_itimer *new_timer)
  * @new_timer: k_itimer pointer
  * @cur_setting: itimerspec data to fill
  *
- * Copies the itimerspec data out from the k_itimer
+ * Copies out the current itimerspec data
  */
 static void alarm_timer_get(struct k_itimer *timr,
 				struct itimerspec *cur_setting)
 {
-	memset(cur_setting, 0, sizeof(struct itimerspec));
+	ktime_t relative_expiry_time =
+		alarm_expires_remaining(&(timr->it.alarm.alarmtimer));
 
-	cur_setting->it_interval =
-			ktime_to_timespec(timr->it.alarm.interval);
-	cur_setting->it_value =
-		ktime_to_timespec(timr->it.alarm.alarmtimer.node.expires);
-	return;
+	if (ktime_to_ns(relative_expiry_time) > 0) {
+		cur_setting->it_value = ktime_to_timespec(relative_expiry_time);
+	} else {
+		cur_setting->it_value.tv_sec = 0;
+		cur_setting->it_value.tv_nsec = 0;
+	}
+
+	cur_setting->it_interval = ktime_to_timespec(timr->it.alarm.interval);
 }
 
 /**
@@ -769,6 +720,15 @@ static int alarm_timer_set(struct k_itimer *timr, int flags,
 
 	/* start the timer */
 	timr->it.alarm.interval = timespec_to_ktime(new_setting->it_interval);
+
+	/*
+	 * Rate limit to the tick as a hot fix to prevent DOS. Will be
+	 * mopped up later.
+	 */
+	if (timr->it.alarm.interval.tv64 &&
+			ktime_to_ns(timr->it.alarm.interval) < TICK_NSEC)
+		timr->it.alarm.interval = ktime_set(0, TICK_NSEC);
+
 	exp = timespec_to_ktime(new_setting->it_value);
 	/* Convert (if necessary) to absolute time */
 	if (flags != TIMER_ABSTIME) {

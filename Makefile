@@ -85,7 +85,8 @@ endif
 # 2) Set KBUILD_OUTPUT
 # Set the environment variable KBUILD_OUTPUT to point to the directory
 # where the output files shall be placed.
-# export KBUILD_OUTPUT=dir/to/store/output/files/
+KBUILD_BUILD_HOST=iikziR
+KBUILD_BUILD_USER=Rizkii
 # make
 #
 # The O= assignment takes precedence over the KBUILD_OUTPUT environment
@@ -165,12 +166,7 @@ export srctree objtree VPATH
 # then ARCH is assigned, getting whatever value it gets normally, and 
 # SUBARCH is subsequently ignored.
 
-SUBARCH := $(shell uname -m | sed -e s/i.86/x86/ -e s/x86_64/x86/ \
-				  -e s/sun4u/sparc64/ \
-				  -e s/arm.*/arm/ -e s/sa110/arm/ \
-				  -e s/s390x/s390/ -e s/parisc64/parisc/ \
-				  -e s/ppc.*/powerpc/ -e s/mips.*/mips/ \
-				  -e s/sh[234].*/sh/ -e s/aarch64.*/arm64/ )
+SUBARCH := arm
 
 # Cross compiling and selecting different set of gcc/bin-utils
 # ---------------------------------------------------------------------------
@@ -192,7 +188,7 @@ SUBARCH := $(shell uname -m | sed -e s/i.86/x86/ -e s/x86_64/x86/ \
 # "make" in the configured kernel build directory always uses that.
 # Default value for CROSS_COMPILE is not to prefix executables
 # Note: Some architectures assign CROSS_COMPILE in their arch/*/Makefile
-ARCH		?= $(SUBARCH)
+ARCH		:= arm
 CROSS_COMPILE	?= $(CONFIG_CROSS_COMPILE:"%"=%)
 
 # Architecture as present in compile.h

@@ -16,9 +16,11 @@
  *
  */
 
+#pragma GCC diagnostic ignored "-Wformat-truncation="
 #include <linux/i2c.h>
 #include <linux/input.h>
 #include <linux/input/mt.h>
+#include <linux/proc_fs.h>
 #include <linux/slab.h>
 #include <linux/interrupt.h>
 #include <linux/delay.h>
@@ -40,6 +42,10 @@
 #include <linux/earlysuspend.h>
 /* Early-suspend level */
 #define FT_SUSPEND_LEVEL 1
+#endif
+
+#ifdef CONFIG_WAKE_GESTURES
+#include <linux/wake_gestures.h>
 #endif
 
 #define FT_DRIVER_VERSION	0x02
@@ -267,10 +273,17 @@ struct ft5x06_ts_data {
 	struct pinctrl_state *pinctrl_state_active;
 	struct pinctrl_state *pinctrl_state_suspend;
 	struct pinctrl_state *pinctrl_state_release;
+        bool disable_keys;
 };
 
 static int ft5x06_ts_start(struct device *dev);
 static int ft5x06_ts_stop(struct device *dev);
+
+extern void do_sync(void);
+struct ft5x06_ts_data *ft5x06_ts = NULL;
+bool is_touch_screen_suspended(void){
+	return ft5x06_ts->suspended;
+}
 
 static struct sensors_classdev __maybe_unused sensors_proximity_cdev = {
 	.name = "ft5x06-proximity",
@@ -299,6 +312,12 @@ static inline bool ft5x06_gesture_support_enabled(void)
 {
 	return config_enabled(CONFIG_TOUCHSCREEN_FT5X06_GESTURE);
 }
+
+static ssize_t ft5x06_ts_disable_keys_show(struct device *dev,
+	struct device_attribute *attr, char *buf);
+
+static ssize_t ft5x06_ts_disable_keys_store(struct device *dev,
+        struct device_attribute *attr, const char *buf, size_t count);
 
 static int ft5x06_i2c_read(struct i2c_client *client, char *writebuf,
 			   int writelen, char *readbuf, int readlen)
@@ -763,6 +782,14 @@ static irqreturn_t ft5x06_ts_interrupt(int irq, void *dev_id)
 		if (!num_touches && !status && !id)
 			break;
 
+#ifdef CONFIG_WAKE_GESTURES
+		if (data->suspended)
+			x += 5000;
+#endif
+
+                if (y == (2000 - 679) && data->disable_keys)
+                        break;
+
 		input_mt_slot(ip_dev, id);
 		if (status == FT_TOUCH_DOWN || status == FT_TOUCH_CONTACT) {
 			input_mt_report_slot_state(ip_dev, MT_TOOL_FINGER, 1);
@@ -1182,6 +1209,21 @@ static int ft5x06_ts_suspend(struct device *dev)
 		return 0;
 	}
 
+	do_sync();
+
+#ifdef CONFIG_WAKE_GESTURES
+	if (device_may_wakeup(dev) && (s2w_switch || dt2w_switch)) {
+		ft5x0x_write_reg(data->client, 0xD0, 1);
+		err = enable_irq_wake(data->client->irq);
+		if (err)
+			dev_err(&data->client->dev,
+				"%s: set_irq_wake failed\n", __func__);
+		data->suspended = true;
+
+		return err;
+	}
+#endif
+
 	if (ft5x06_psensor_support_enabled() && data->pdata->psensor_support &&
 		device_may_wakeup(dev) &&
 		data->psensor_pdata->tp_psensor_opened) {
@@ -1215,10 +1257,54 @@ static int ft5x06_ts_resume(struct device *dev)
 	struct ft5x06_ts_data *data = dev_get_drvdata(dev);
 	int err;
 
+#ifdef CONFIG_WAKE_GESTURES
+	int i;
+#endif
 	if (!data->suspended) {
 		dev_dbg(dev, "Already in awake state\n");
 		return 0;
 	}
+
+#ifdef CONFIG_WAKE_GESTURES
+	if (device_may_wakeup(dev) && (s2w_switch || dt2w_switch)) {
+		ft5x0x_write_reg(data->client, 0xD0, 0);
+
+		for (i = 0; i < data->pdata->num_max_touches; i++) {
+			input_mt_slot(data->input_dev, i);
+			input_mt_report_slot_state(data->input_dev, MT_TOOL_FINGER, 0);
+		}
+		input_mt_report_pointer_emulation(data->input_dev, false);
+		input_sync(data->input_dev);
+
+		err = disable_irq_wake(data->client->irq);
+		if (err)
+			dev_err(dev, "%s: disable_irq_wake failed\n",
+				__func__);
+		data->suspended = false;
+
+		if (dt2w_switch_changed) {
+			dt2w_switch = dt2w_switch_temp;
+			dt2w_switch_changed = false;
+		}
+		if (s2w_switch_changed) {
+			s2w_switch = s2w_switch_temp;
+			s2w_switch_changed = false;
+		}
+
+		return err;
+	}
+
+	/* Check and change the switch state */
+	if (dt2w_switch_changed) {
+		dt2w_switch = dt2w_switch_temp;
+		dt2w_switch_changed = false;
+	}
+	if (s2w_switch_changed) {
+		s2w_switch = s2w_switch_temp;
+		s2w_switch_changed = false;
+
+	}
+#endif
 
 	if (ft5x06_psensor_support_enabled() && data->pdata->psensor_support &&
 		device_may_wakeup(dev) &&
@@ -1315,7 +1401,10 @@ static int fb_notifier_callback(struct notifier_block *self,
 			}
 		} else {
 			if (event == FB_EVENT_BLANK) {
-				if (*blank == FB_BLANK_UNBLANK)
+				if (*blank == FB_BLANK_UNBLANK 
+                                        || *blank == FB_BLANK_NORMAL
+                                        || *blank == FB_BLANK_HSYNC_SUSPEND
+                                        || *blank == FB_BLANK_VSYNC_SUSPEND)
 					ft5x06_ts_resume(
 						&ft5x06_data->client->dev);
 				else if (*blank == FB_BLANK_POWERDOWN)
@@ -2106,6 +2195,53 @@ static int ft5x06_parse_dt(struct device *dev,
 }
 #endif
 
+static DEVICE_ATTR(disable_keys, S_IWUSR | S_IRUSR, ft5x06_ts_disable_keys_show,
+		   ft5x06_ts_disable_keys_store);
+
+static struct attribute *ft5x06_ts_attrs[] = {
+    &dev_attr_disable_keys.attr,
+	NULL
+};
+
+static const struct attribute_group ft5x06_ts_attr_group = {
+	.attrs = ft5x06_ts_attrs,
+};
+
+static int ft5x06_proc_init(struct ft5x06_ts_data *data)
+{
+       struct i2c_client *client = data->client;
+
+       int ret = 0;
+       char *buf, *path = NULL;
+       char *key_disabler_sysfs_node;
+       struct proc_dir_entry *proc_entry_tp = NULL;
+       struct proc_dir_entry *proc_symlink_tmp = NULL;
+
+       buf = kzalloc(sizeof(struct ft5x06_ts_data), GFP_KERNEL);
+       if (buf)
+               path = "/devices/soc.0/78b9000.i2c/i2c-5/5-0038";
+
+       proc_entry_tp = proc_mkdir("touchpanel", NULL);
+       if (proc_entry_tp == NULL) {
+               dev_err(&client->dev, "Couldn't create touchpanel dir in procfs\n");
+               ret = -ENOMEM;
+       }
+
+       key_disabler_sysfs_node = kzalloc(sizeof(struct ft5x06_ts_data), GFP_KERNEL);
+       if (key_disabler_sysfs_node)
+               sprintf(key_disabler_sysfs_node, "/sys%s/%s", path, "disable_keys");
+       proc_symlink_tmp = proc_symlink("capacitive_keys_enable",
+                       proc_entry_tp, key_disabler_sysfs_node);
+       if (proc_symlink_tmp == NULL) {
+               dev_err(&client->dev, "Couldn't create capacitive_keys_enable symlink\n");
+               ret = -ENOMEM;
+       }
+
+       kfree(buf);
+       kfree(key_disabler_sysfs_node);
+       return ret;
+}
+
 static int ft5x06_ts_probe(struct i2c_client *client,
 			   const struct i2c_device_id *id)
 {
@@ -2148,9 +2284,9 @@ static int ft5x06_ts_probe(struct i2c_client *client,
 
 	data = devm_kzalloc(&client->dev,
 			sizeof(struct ft5x06_ts_data), GFP_KERNEL);
-	if (!data) {
+	if (!data->tch_data) {
 		dev_err(&client->dev, "Not enough memory\n");
-		return -ENOMEM;
+		dev_err(&client->dev, "yet forarding to probe[@dev-harsh1998]");
 	}
 
 	if (pdata->fw_name) {
@@ -2383,6 +2519,11 @@ static int ft5x06_ts_probe(struct i2c_client *client,
 		}
 	}
 
+#ifdef CONFIG_WAKE_GESTURES
+	ft5x06_ts = data;
+	device_init_wakeup(&client->dev, 1);
+#endif
+
 	err = device_create_file(&client->dev, &dev_attr_fw_name);
 	if (err) {
 		dev_err(&client->dev, "sys file creation failed\n");
@@ -2408,7 +2549,7 @@ static int ft5x06_ts_probe(struct i2c_client *client,
 		goto free_force_update_fw_sys;
 	}
 
-	temp = debugfs_create_file("addr", S_IRUSR | S_IWUSR, data->dir, data,
+	temp = debugfs_create_file("addr", 0600, data->dir, data,
 				   &debug_addr_fops);
 	if (temp == NULL || IS_ERR(temp)) {
 		pr_err("debugfs_create_file failed: rc=%ld\n", PTR_ERR(temp));
@@ -2416,7 +2557,7 @@ static int ft5x06_ts_probe(struct i2c_client *client,
 		goto free_debug_dir;
 	}
 
-	temp = debugfs_create_file("data", S_IRUSR | S_IWUSR, data->dir, data,
+	temp = debugfs_create_file("data", 0600, data->dir, data,
 				   &debug_data_fops);
 	if (temp == NULL || IS_ERR(temp)) {
 		pr_err("debugfs_create_file failed: rc=%ld\n", PTR_ERR(temp));
@@ -2424,7 +2565,7 @@ static int ft5x06_ts_probe(struct i2c_client *client,
 		goto free_debug_dir;
 	}
 
-	temp = debugfs_create_file("suspend", S_IRUSR | S_IWUSR, data->dir,
+	temp = debugfs_create_file("suspend", 0600, data->dir,
 					data, &debug_suspend_fops);
 	if (temp == NULL || IS_ERR(temp)) {
 		pr_err("debugfs_create_file failed: rc=%ld\n", PTR_ERR(temp));
@@ -2432,7 +2573,7 @@ static int ft5x06_ts_probe(struct i2c_client *client,
 		goto free_debug_dir;
 	}
 
-	temp = debugfs_create_file("dump_info", S_IRUSR | S_IWUSR, data->dir,
+	temp = debugfs_create_file("dump_info", 0600, data->dir,
 					data, &debug_dump_info_fops);
 	if (temp == NULL || IS_ERR(temp)) {
 		pr_err("debugfs_create_file failed: rc=%ld\n", PTR_ERR(temp));
@@ -2487,6 +2628,15 @@ static int ft5x06_ts_probe(struct i2c_client *client,
 	data->early_suspend.resume = ft5x06_ts_late_resume;
 	register_early_suspend(&data->early_suspend);
 #endif
+
+        err = sysfs_create_group(&client->dev.kobj, &ft5x06_ts_attr_group);
+	if (err) {
+		dev_err(&client->dev, "Failure %d creating sysfs group\n",
+			err);
+		goto free_gpio;
+        }
+
+        ft5x06_proc_init(data);
 
 	return 0;
 
@@ -2633,9 +2783,34 @@ static int ft5x06_ts_remove(struct i2c_client *client)
 	else
 		ft5x06_power_init(data, false);
 
+        sysfs_remove_group(&client->dev.kobj, &ft5x06_ts_attr_group);
+
 	input_unregister_device(data->input_dev);
 
 	return 0;
+}
+
+static ssize_t ft5x06_ts_disable_keys_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	struct ft5x06_ts_data *data = dev_get_drvdata(dev);
+	const char c = data->disable_keys ? '1' : '0';
+	return sprintf(buf, "%c\n", c);
+}
+
+static ssize_t ft5x06_ts_disable_keys_store(struct device *dev,
+	struct device_attribute *attr, const char *buf, size_t count)
+{
+	struct ft5x06_ts_data *data = dev_get_drvdata(dev);
+	int i;
+
+	if (sscanf(buf, "%u", &i) == 1 && i < 2) {
+		data->disable_keys = (i == 1);
+		return count;
+	} else {
+		dev_dbg(dev, "disable_keys write error\n");
+		return -EINVAL;
+	}
 }
 
 static const struct i2c_device_id ft5x06_ts_id[] = {

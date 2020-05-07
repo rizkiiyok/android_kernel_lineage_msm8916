@@ -929,9 +929,7 @@ int arizona_init_gpio(struct snd_soc_codec *codec)
 		break;
 	}
 
-#ifndef CONFIG_MACH_T86519A1
 	snd_soc_dapm_disable_pin(&codec->dapm, "DRC1 Signal Activity");
-#endif
 
 	for (i = 0; i < ARRAY_SIZE(arizona->pdata.gpio_defaults); i++) {
 		switch (arizona->pdata.gpio_defaults[i] & ARIZONA_GPN_FN_MASK) {
@@ -3603,19 +3601,6 @@ static int arizona_startup(struct snd_pcm_substream *substream,
 		dai_priv->constraint.mask = ARIZONA_44K1_RATE_MASK;
 	else
 		dai_priv->constraint.mask = ARIZONA_48K_RATE_MASK;
-
-#ifdef CONFIG_MACH_T86519A1
-	/*
-	 * This works around a crash when enabling mp3/aac offload on Lettuce
-	 *
-	 * In the case that substream->runtime is not set, we assume that we
-	 * shouldn't setup constraints and just return.
-	 */
-	if (!substream->runtime) {
-		dev_info(codec->dev, "runtime null, assuming dsp offload\n");
-		return 0;
-	}
-#endif
 
 	return snd_pcm_hw_constraint_list(substream->runtime, 0,
 					  SNDRV_PCM_HW_PARAM_RATE,

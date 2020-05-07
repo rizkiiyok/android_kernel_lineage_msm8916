@@ -154,7 +154,6 @@ static int tps65132_regulator_enable(struct regulator_dev *rdev)
 static int tps65132_regulator_get_voltage(struct regulator_dev *rdev)
 {
 	struct tps65132_regulator *vreg = rdev_get_drvdata(rdev);
-#ifndef CONFIG_MACH_T86519A1
 	int rc, val;
 
 	if (!rdev->regmap) {
@@ -178,7 +177,6 @@ static int tps65132_regulator_get_voltage(struct regulator_dev *rdev)
 		vreg->curr_uV = (val & TPS65132_VOLTAGE_MASK) *
 			TPS65132_VOLTAGE_STEP + TPS65132_VOLTAGE_MIN;
 	}
-#endif
 
 	return vreg->curr_uV;
 }
@@ -206,7 +204,14 @@ static int tps65132_regulator_set_voltage(struct regulator_dev *rdev,
 		vreg->vol_set_val = val;
 		vreg->vol_set_postpone = true;
 	} else {
+#ifdef CONFIG_MACH_WT86518
+		/*zhanzhimin.wt 2015/02/10 workaround for LCD display abnormality when add tps6132 drvier begin*/
+		//rc = regmap_write(rdev->regmap, vreg->vol_reg, val);
+		rc = 0;
+               /*zhanzhimin.wt 2015/02/10 workaround for LCD display abnormality when add tps6132 drvier end*/
+#else
 		rc = regmap_write(rdev->regmap, vreg->vol_reg, val);
+#endif
 		if (rc) {
 			pr_err("failed to write reg %d, rc = %d\n",
 						vreg->vol_reg, rc);

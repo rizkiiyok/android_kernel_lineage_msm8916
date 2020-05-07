@@ -3,7 +3,7 @@
  * MSM architecture cpufreq driver
  *
  * Copyright (C) 2007 Google, Inc.
- * Copyright (c) 2007-2015, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2007-2016, The Linux Foundation. All rights reserved.
  * Author: Mike A. Chan <mikechan@google.com>
  *
  * This software is licensed under the terms of the GNU General Public
@@ -28,6 +28,7 @@
 #include <linux/err.h>
 #include <linux/platform_device.h>
 #include <linux/of.h>
+#include <linux/delay.h>
 #include <trace/events/power.h>
 
 static DEFINE_MUTEX(l2bw_lock);
@@ -77,8 +78,11 @@ static int msm_cpufreq_target(struct cpufreq_policy *policy,
 	int ret = 0;
 	int index;
 	struct cpufreq_frequency_table *table;
+	struct clk *c = cpu_clk[policy->cpu];
+	s64 delta_us;
 
 	mutex_lock(&per_cpu(cpufreq_suspend, policy->cpu).suspend_mutex);
+	mutex_lock(&c->update_lock);
 
 	if (target_freq == policy->cur)
 		goto done;
@@ -91,6 +95,12 @@ static int msm_cpufreq_target(struct cpufreq_policy *policy,
 	}
 
 	table = cpufreq_frequency_get_table(policy->cpu);
+	if (!table) {
+		pr_err("cpufreq: Failed to get frequency table for CPU%u\n",
+		       policy->cpu);
+		ret = -ENODEV;
+		goto done;
+	}
 	if (cpufreq_frequency_table_target(policy, table, target_freq, relation,
 			&index)) {
 		pr_err("cpufreq: invalid target_freq: %d\n", target_freq);
@@ -102,9 +112,16 @@ static int msm_cpufreq_target(struct cpufreq_policy *policy,
 		policy->cpu, target_freq, relation,
 		policy->min, policy->max, table[index].frequency);
 
+	/* The old rate needs time to settle before it can be changed again */
+	delta_us = ktime_us_delta(ktime_get_boottime(), c->last_update);
+	if (delta_us < 10000)
+		usleep_range(10000 - delta_us, 11000 - delta_us);
+	c->last_update = ktime_get_boottime();
+
 	ret = set_cpu_freq(policy, table[index].frequency,
 			   table[index].driver_data);
 done:
+	mutex_unlock(&c->update_lock);
 	mutex_unlock(&per_cpu(cpufreq_suspend, policy->cpu).suspend_mutex);
 	return ret;
 }
@@ -140,8 +157,11 @@ static int msm_cpufreq_init(struct cpufreq_policy *policy)
 		if (cpu_clk[cpu] == cpu_clk[policy->cpu])
 			cpumask_set_cpu(cpu, policy->cpus);
 
-	if (cpufreq_frequency_table_cpuinfo(policy, table))
+	ret = cpufreq_table_validate_and_show(policy, table);
+	if (ret) {
 		pr_err("cpufreq: failed to get policy min/max\n");
+		return ret;
+	}
 
 	cur_freq = clk_get_rate(cpu_clk[policy->cpu])/1000;
 
@@ -315,7 +335,7 @@ static struct cpufreq_driver msm_cpufreq_driver = {
 static struct cpufreq_frequency_table *cpufreq_parse_dt(struct device *dev,
 						char *tbl_name, int cpu)
 {
-	int ret, nf, i;
+	int ret, nf, i, j;
 	u32 *data;
 	struct cpufreq_frequency_table *ftbl;
 
@@ -339,6 +359,7 @@ static struct cpufreq_frequency_table *cpufreq_parse_dt(struct device *dev,
 	if (!ftbl)
 		return ERR_PTR(-ENOMEM);
 
+	j = 0;
 	for (i = 0; i < nf; i++) {
 		unsigned long f;
 
@@ -348,29 +369,20 @@ static struct cpufreq_frequency_table *cpufreq_parse_dt(struct device *dev,
 		f /= 1000;
 
 		/*
-		 * Check if this is the last feasible frequency in the table.
+		 * Don't repeat frequencies if they round up to the same clock
+		 * frequency.
 		 *
-		 * The table listing frequencies higher than what the HW can
-		 * support is not an error since the table might be shared
-		 * across CPUs in different speed bins. It's also not
-		 * sufficient to check if the rounded rate is lower than the
-		 * requested rate as it doesn't cover the following example:
-		 *
-		 * Table lists: 2.2 GHz and 2.5 GHz.
-		 * Rounded rate returns: 2.2 GHz and 2.3 GHz.
-		 *
-		 * In this case, we can CPUfreq to use 2.2 GHz and 2.3 GHz
-		 * instead of rejecting the 2.5 GHz table entry.
 		 */
-		if (i > 0 && f <= ftbl[i-1].frequency)
-			break;
+		if (j > 0 && f <= ftbl[j - 1].frequency)
+			continue;
 
-		ftbl[i].driver_data = i;
-		ftbl[i].frequency = f;
+		ftbl[j].driver_data = j;
+		ftbl[j].frequency = f;
+		j++;
 	}
 
-	ftbl[i].driver_data = i;
-	ftbl[i].frequency = CPUFREQ_TABLE_END;
+	ftbl[j].driver_data = j;
+	ftbl[j].frequency = CPUFREQ_TABLE_END;
 
 	devm_kfree(dev, data);
 

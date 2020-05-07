@@ -61,7 +61,6 @@ static void mmc_clk_scaling(struct mmc_host *host, bool from_wq);
 /* Flushing a large amount of cached data may take a long time. */
 #define MMC_FLUSH_REQ_TIMEOUT_MS 180000 /* msec */
 
-static struct workqueue_struct *workqueue;
 static const unsigned freqs[] = { 400000, 300000, 200000, 100000 };
 
 /*
@@ -69,7 +68,7 @@ static const unsigned freqs[] = { 400000, 300000, 200000, 100000 };
  * performance cost, and for other reasons may not always be desired.
  * So we allow it it to be disabled.
  */
-bool use_spi_crc = 1;
+bool use_spi_crc = 0;
 module_param(use_spi_crc, bool, 0);
 
 /*
@@ -113,21 +112,16 @@ MODULE_PARM_DESC(
 		spin_unlock(&stats.lock);				\
 	} while (0);
 
-/*
- * Internal function. Schedule delayed work in the MMC work queue.
- */
 static int mmc_schedule_delayed_work(struct delayed_work *work,
 				     unsigned long delay)
 {
-	return queue_delayed_work(workqueue, work, delay);
-}
-
-/*
- * Internal function. Flush all scheduled work from the MMC work queue.
- */
-static void mmc_flush_scheduled_work(void)
-{
-	flush_workqueue(workqueue);
+	/*
+	 * We use the system_freezable_wq, because of two reasons.
+	 * First, it allows several works (not the same work item) to be
+	 * executed simultaneously. Second, the queue becomes frozen when
+	 * userspace becomes frozen during system PM.
+	 */
+	return queue_delayed_work(system_freezable_wq, work, delay);
 }
 
 #ifdef CONFIG_FAIL_MMC_REQUEST
@@ -2202,7 +2196,6 @@ int mmc_resume_bus(struct mmc_host *host)
 	pr_debug("%s: Starting deferred resume\n", mmc_hostname(host));
 	spin_lock_irqsave(&host->lock, flags);
 	host->bus_resume_flags &= ~MMC_BUSRESUME_NEEDS_RESUME;
-	host->rescan_disable = 0;
 	spin_unlock_irqrestore(&host->lock, flags);
 
 	mmc_bus_get(host);
@@ -2658,10 +2651,12 @@ EXPORT_SYMBOL(mmc_can_discard);
 
 int mmc_can_sanitize(struct mmc_card *card)
 {
+#ifndef CONFIG_MACH_WT86518
 	if (!mmc_can_trim(card) && !mmc_can_erase(card))
 		return 0;
 	if (card->ext_csd.sec_feature_support & EXT_CSD_SEC_SANITIZE)
 		return 1;
+#endif
 	return 0;
 }
 EXPORT_SYMBOL(mmc_can_sanitize);
@@ -3019,7 +3014,8 @@ out:
 	return;
 }
 
-static bool mmc_is_vaild_state_for_clk_scaling(struct mmc_host *host)
+static bool mmc_is_vaild_state_for_clk_scaling(struct mmc_host *host,
+				enum mmc_load state)
 {
 	struct mmc_card *card = host->card;
 	u32 status;
@@ -3029,10 +3025,14 @@ static bool mmc_is_vaild_state_for_clk_scaling(struct mmc_host *host)
 	 * If the current partition type is RPMB, clock switching may not
 	 * work properly as sending tuning command (CMD21) is illegal in
 	 * this mode.
+	 * In case invalid_state is set, we forbid clock scaling, unless,
+	 * its down-scale and "scale_down_in_low_wr_load" is set.
 	 */
 	if (!card || (mmc_card_mmc(card) &&
-			card->part_curr == EXT_CSD_PART_CONFIG_ACC_RPMB)
-			|| host->clk_scaling.invalid_state)
+		card->part_curr == EXT_CSD_PART_CONFIG_ACC_RPMB) ||
+		(host->clk_scaling.invalid_state &&
+		!(state == MMC_LOAD_LOW &&
+		host->clk_scaling.scale_down_in_low_wr_load)))
 		goto out;
 
 	if (mmc_send_status(card, &status)) {
@@ -3063,7 +3063,7 @@ static int mmc_clk_update_freq(struct mmc_host *host,
 	}
 
 	if (freq != host->clk_scaling.curr_freq) {
-		if (!mmc_is_vaild_state_for_clk_scaling(host)) {
+		if (!mmc_is_vaild_state_for_clk_scaling(host, state)) {
 			err = -EAGAIN;
 			goto error;
 		}
@@ -3360,12 +3360,17 @@ EXPORT_SYMBOL(mmc_detect_card_removed);
 
 void mmc_rescan(struct work_struct *work)
 {
+	unsigned long flags;
 	struct mmc_host *host =
 		container_of(work, struct mmc_host, detect.work);
 	bool extend_wakelock = false;
 
-	if (host->rescan_disable)
+	spin_lock_irqsave(&host->lock, flags);
+	if (host->rescan_disable) {
+		spin_unlock_irqrestore(&host->lock, flags);
 		return;
+	}
+	spin_unlock_irqrestore(&host->lock, flags);
 
 	/* If there is a non-removable card registered, only scan once */
 	if ((host->caps & MMC_CAP_NONREMOVABLE) && host->rescan_entered)
@@ -3458,8 +3463,6 @@ void mmc_stop_host(struct mmc_host *host)
 
 	host->rescan_disable = 1;
 	cancel_delayed_work_sync(&host->detect);
-
-	mmc_flush_scheduled_work();
 
 	/* clear pm flags now and let card drivers set them as needed */
 	host->pm_flags = 0;
@@ -3616,60 +3619,6 @@ int mmc_flush_cache(struct mmc_card *card)
 	return err;
 }
 EXPORT_SYMBOL(mmc_flush_cache);
-
-/*
- * Turn the cache ON/OFF.
- * Turning the cache OFF shall trigger flushing of the data
- * to the non-volatile storage.
- * This function should be called with host claimed
- */
-int mmc_cache_ctrl(struct mmc_host *host, u8 enable)
-{
-	struct mmc_card *card = host->card;
-	unsigned int timeout;
-	int err = 0, rc;
-
-	BUG_ON(!card);
-	timeout = card->ext_csd.generic_cmd6_time;
-
-	if (!(host->caps2 & MMC_CAP2_CACHE_CTRL) ||
-			mmc_card_is_removable(host) ||
-			(card->quirks & MMC_QUIRK_CACHE_DISABLE))
-		return err;
-
-	if (card && mmc_card_mmc(card) &&
-			(card->ext_csd.cache_size > 0)) {
-		enable = !!enable;
-
-		if (card->ext_csd.cache_ctrl ^ enable) {
-			if (!enable)
-				timeout = MMC_FLUSH_REQ_TIMEOUT_MS;
-
-			err = mmc_switch_ignore_timeout(card,
-					EXT_CSD_CMD_SET_NORMAL,
-					EXT_CSD_CACHE_CTRL, enable, timeout);
-
-			if (err == -ETIMEDOUT && !enable) {
-				pr_err("%s:cache disable operation timeout\n",
-						mmc_hostname(card->host));
-				rc = mmc_interrupt_hpi(card);
-				if (rc)
-					pr_err("%s: mmc_interrupt_hpi() failed (%d)\n",
-							mmc_hostname(host), rc);
-			} else if (err) {
-				pr_err("%s: cache %s error %d\n",
-						mmc_hostname(card->host),
-						enable ? "on" : "off",
-						err);
-			} else {
-				card->ext_csd.cache_ctrl = enable;
-			}
-		}
-	}
-
-	return err;
-}
-EXPORT_SYMBOL(mmc_cache_ctrl);
 
 #ifdef CONFIG_PM
 
@@ -3836,12 +3785,6 @@ int mmc_pm_notify(struct notifier_block *notify_block,
 		}
 
 		spin_lock_irqsave(&host->lock, flags);
-		if (mmc_bus_needs_resume(host)) {
-			spin_unlock_irqrestore(&host->lock, flags);
-			break;
-		}
-
-		/* since its suspending anyway, disable rescan */
 		host->rescan_disable = 1;
 		spin_unlock_irqrestore(&host->lock, flags);
 
@@ -3865,6 +3808,14 @@ int mmc_pm_notify(struct notifier_block *notify_block,
 
 		if (!host->bus_ops || host->bus_ops->suspend)
 			break;
+
+		if (!mmc_card_is_removable(host)) {
+			dev_warn(mmc_dev(host),
+				 "pre_suspend failed for non-removable host: "
+				 "%d\n", err);
+			/* Avoid removing non-removable hosts */
+			break;
+		}
 
 		/* Calling bus_ops->remove() with a claimed host can deadlock */
 		if (host->bus_ops->remove)
@@ -3995,13 +3946,9 @@ static int __init mmc_init(void)
 {
 	int ret;
 
-	workqueue = alloc_ordered_workqueue("kmmcd", 0);
-	if (!workqueue)
-		return -ENOMEM;
-
 	ret = mmc_register_bus();
 	if (ret)
-		goto destroy_workqueue;
+		return ret;
 
 	ret = mmc_register_host_class();
 	if (ret)
@@ -4017,9 +3964,6 @@ unregister_host_class:
 	mmc_unregister_host_class();
 unregister_bus:
 	mmc_unregister_bus();
-destroy_workqueue:
-	destroy_workqueue(workqueue);
-
 	return ret;
 }
 
@@ -4028,7 +3972,6 @@ static void __exit mmc_exit(void)
 	sdio_unregister_bus();
 	mmc_unregister_host_class();
 	mmc_unregister_bus();
-	destroy_workqueue(workqueue);
 }
 
 subsys_initcall(mmc_init);

@@ -98,9 +98,6 @@ enum dsi_panel_status_mode {
 	ESD_REG,
 	ESD_REG_NT35596,
 	ESD_TE,
-#ifdef CONFIG_MACH_CP8675
-	ESD_REG_YL,
-#endif
 	ESD_MAX,
 };
 
@@ -126,6 +123,11 @@ enum dsi_pm_type {
 	DSI_PANEL_PM,
 	DSI_MAX_PM
 };
+
+#ifdef CONFIG_MACH_WT86518
+#define STATUS_CMDS_NUM 5
+#define STATUS_VALUE_NUM 5
+#endif
 
 #define CTRL_STATE_UNKNOWN		0x00
 #define CTRL_STATE_PANEL_INIT		BIT(0)
@@ -255,19 +257,6 @@ struct dsi_panel_cmds {
 	int link_state;
 };
 
-#ifdef CONFIG_MACH_CP8675
-struct status_reg {
-	u8 reg;
-	u8 num_vals;
-	u8 *vals;
-};
-
-struct dsi_panel_status_regs {
-	size_t num_regs;
-	struct status_reg *regs;
-};
-#endif
-
 struct dsi_kickoff_action {
 	struct list_head act_entry;
 	void (*action) (void *);
@@ -390,12 +379,20 @@ struct mdss_dsi_ctrl_pdata {
 	struct dsi_panel_cmds post_dms_on_cmds;
 	struct dsi_panel_cmds post_panel_on_cmds;
 	struct dsi_panel_cmds off_cmds;
+
+#ifdef CONFIG_MACH_WT86518
+	struct dsi_panel_cmds status_cmds[STATUS_CMDS_NUM];
+	int status_cmds_num;
+#else
 	struct dsi_panel_cmds status_cmds;
-#ifdef CONFIG_MACH_CP8675
-	struct dsi_panel_status_regs status_regs;
 #endif
 	u32 status_cmds_rlen;
+
+#ifdef CONFIG_MACH_WT86518
+	u32 status_value[STATUS_CMDS_NUM][STATUS_VALUE_NUM];
+#else
 	u32 status_value;
+#endif
 	u32 status_error_count;
 
 	struct dsi_panel_cmds video2cmd;

@@ -25,7 +25,7 @@ struct sched_param {
 
 #include <asm/page.h>
 #include <asm/ptrace.h>
-#include <asm/cputime.h>
+#include <linux/cputime.h>
 
 #include <linux/smp.h>
 #include <linux/sem.h>
@@ -721,6 +721,16 @@ struct signal_struct {
 
 #define SIGNAL_UNKILLABLE	0x00000040 /* for init: ignore fatal signals */
 
+#define SIGNAL_STOP_MASK (SIGNAL_CLD_MASK | SIGNAL_STOP_STOPPED | \
+			  SIGNAL_STOP_CONTINUED)
+
+static inline void signal_set_stop_flags(struct signal_struct *sig,
+					 unsigned int flags)
+{
+	WARN_ON(sig->flags & (SIGNAL_GROUP_EXIT|SIGNAL_GROUP_COREDUMP));
+	sig->flags = (sig->flags & ~SIGNAL_STOP_MASK) | flags;
+}
+
 /* If true, all threads except ->group_exit_task have pending SIGKILL */
 static inline int signal_group_exit(const struct signal_struct *sig)
 {
@@ -1206,6 +1216,7 @@ struct task_struct {
 	atomic_t usage;
 	unsigned int flags;	/* per process flags, defined below */
 	unsigned int ptrace;
+	unsigned int yield_count;
 
 #ifdef CONFIG_SMP
 	struct llist_node wake_entry;
@@ -1335,6 +1346,8 @@ struct task_struct {
 
 	cputime_t utime, stime, utimescaled, stimescaled;
 	cputime_t gtime;
+	atomic64_t *time_in_state;
+	unsigned int max_states;
 	unsigned long long cpu_power;
 #ifndef CONFIG_VIRT_CPU_ACCOUNTING_NATIVE
 	struct cputime prev_cputime;
@@ -1597,6 +1610,8 @@ struct task_struct {
 	unsigned int	sequential_io;
 	unsigned int	sequential_io_avg;
 #endif
+	atomic64_t *concurrent_active_time;
+	atomic64_t *concurrent_policy_time;
 };
 
 /* Future-safe accessor for struct task_struct's cpus_allowed. */
@@ -1679,13 +1694,6 @@ static inline pid_t task_tgid_nr(struct task_struct *tsk)
 	return tsk->tgid;
 }
 
-pid_t task_tgid_nr_ns(struct task_struct *tsk, struct pid_namespace *ns);
-
-static inline pid_t task_tgid_vnr(struct task_struct *tsk)
-{
-	return pid_vnr(task_tgid(tsk));
-}
-
 
 static inline pid_t task_pgrp_nr_ns(struct task_struct *tsk,
 					struct pid_namespace *ns)
@@ -1708,6 +1716,16 @@ static inline pid_t task_session_nr_ns(struct task_struct *tsk,
 static inline pid_t task_session_vnr(struct task_struct *tsk)
 {
 	return __task_pid_nr_ns(tsk, PIDTYPE_SID, NULL);
+}
+
+static inline pid_t task_tgid_nr_ns(struct task_struct *tsk, struct pid_namespace *ns)
+{
+	return __task_pid_nr_ns(tsk, __PIDTYPE_TGID, ns);
+}
+
+static inline pid_t task_tgid_vnr(struct task_struct *tsk)
+{
+	return __task_pid_nr_ns(tsk, __PIDTYPE_TGID, NULL);
 }
 
 /* obsolete, do not use */
@@ -1792,6 +1810,8 @@ extern int task_free_unregister(struct notifier_block *n);
 #ifdef CONFIG_SCHED_FREQ_INPUT
 extern int sched_set_window(u64 window_start, unsigned int window_size);
 extern unsigned long sched_get_busy(int cpu);
+extern void sched_get_cpus_busy(unsigned long *busy,
+				const struct cpumask *query_cpus);
 extern void sched_set_io_is_busy(int val);
 #else
 static inline int sched_set_window(u64 window_start, unsigned int window_size)
@@ -2380,7 +2400,10 @@ struct task_struct *fork_idle(int);
 extern pid_t kernel_thread(int (*fn)(void *), void *arg, unsigned long flags);
 
 extern void set_task_comm(struct task_struct *tsk, char *from);
-extern char *get_task_comm(char *to, struct task_struct *tsk);
+extern char *__get_task_comm(char *to, size_t len, struct task_struct *tsk);
+#define get_task_comm(buf, tsk) ({			\
+	__get_task_comm(buf, sizeof(buf), tsk);		\
+})
 
 #ifdef CONFIG_SMP
 void scheduler_ipi(void);
@@ -2915,6 +2938,11 @@ static inline void inc_syscw(struct task_struct *tsk)
 {
 	tsk->ioac.syscw++;
 }
+
+static inline void inc_syscfs(struct task_struct *tsk)
+{
+	tsk->ioac.syscfs++;
+}
 #else
 static inline void add_rchar(struct task_struct *tsk, ssize_t amt)
 {
@@ -2929,6 +2957,9 @@ static inline void inc_syscr(struct task_struct *tsk)
 }
 
 static inline void inc_syscw(struct task_struct *tsk)
+{
+}
+static inline void inc_syscfs(struct task_struct *tsk)
 {
 }
 #endif
