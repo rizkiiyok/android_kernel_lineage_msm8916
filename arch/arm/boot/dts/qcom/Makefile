@@ -28,6 +28,11 @@ dtb-$(CONFIG_ARCH_MSM8974) += msm8974-v1-cdp.dtb \
 	msm8974pro-ac-pm8941-liquid.dtb \
 	msm8974pro-ac-pm8941-mtp.dtb \
 	msm8974pro-ac-pma8084-pm8941-mtp.dtb
+ifeq ($(CONFIG_MACH_G101),y)
+dtb-$(CONFIG_ARCH_MSM8909) += msm8909-g101.dtb
+else ifeq ($(CONFIG_MACH_G151),y)
+dtb-$(CONFIG_ARCH_MSM8909) += msm8909-g151.dtb
+else
 dtb-$(CONFIG_ARCH_MSM8909) += msm8909-sim.dtb \
 	msm8909-rumi.dtb \
 	msm8909-qrd-skua.dtb \
@@ -78,6 +83,7 @@ dtb-$(CONFIG_ARCH_MSM8909) += msm8909-sim.dtb \
 	msm8909-512mb-mtp-wcd9326-refboard.dtb \
 	apq8009-mtp-wcd9326-refboard.dtb \
 	apq8009-512mb-mtp-wcd9326-refboard.dtb
+endif
 
 ifeq ($(CONFIG_MACH_CKT_MSM8939),y)
 dtb-$(CONFIG_ARCH_MSM8916) += msm8939-spirit.dtb
