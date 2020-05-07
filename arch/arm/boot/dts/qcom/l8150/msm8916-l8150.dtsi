@@ -17,6 +17,7 @@
 #include "dsi-panel-trulyotm1288a-720p-video.dtsi"
 #include "dsi-panel-dijingILI9881C-720p-video.dtsi"
 #include "dsi-panel-booyiOTM1287-720p-video.dtsi"
+#include "dsi-panel-truly-R61350-720p-video.dtsi"
 
 
 / {
@@ -177,7 +178,8 @@
 		/* This is tacked at the end of pheripheral_region@0 */
 		android,ramoops-buffer-start = <0x8c400000>;
 		android,ramoops-buffer-size = <0x100000>;
-		android,ramoops-console-size = <0x80000>;
+		android,ramoops-console-size = <0x40000>;
+		android,ramoops-pmsg-size = <0x40000>;
 		android,ramoops-record-size = <0x20000>;
 		android,ramoops-dump-oops = <0x1>;
 	};
