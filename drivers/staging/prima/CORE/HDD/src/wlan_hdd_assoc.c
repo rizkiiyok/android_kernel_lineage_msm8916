@@ -2809,7 +2809,7 @@ static void hdd_RoamIbssIndicationHandler( hdd_adapter_t *pAdapter,
 
          if (pRoamInfo->pBssDesc)
          {
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,15,0))
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4,19,0))
              struct ieee80211_channel *chan;
              int chan_no;
              unsigned int freq;
@@ -2838,7 +2838,7 @@ static void hdd_RoamIbssIndicationHandler( hdd_adapter_t *pAdapter,
             hddLog(VOS_TRACE_LEVEL_INFO, FL("Enabling queues"));
             netif_tx_start_all_queues(pAdapter->dev);
 #endif
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,15,0))
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4,19,0))
             chan_no = pRoamInfo->pBssDesc->channelId;
 
             if (chan_no <= 14)
@@ -3450,7 +3450,7 @@ static eHalStatus roamRoamConnectStatusUpdateHandler( hdd_adapter_t *pAdapter, t
 
   ===========================================================================*/
 VOS_STATUS hdd_roamRegisterTDLSSTA(hdd_adapter_t *pAdapter,
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,18,0))
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4,19,0))
                                    const tANI_U8 *peerMac,
 #else
                                    tANI_U8 *peerMac,
@@ -5745,7 +5745,7 @@ void hdd_indicateUnprotMgmtFrame( hdd_adapter_t *pAdapter,
     /* Get pAdapter from Destination mac address of the frame */
     if (type == SIR_MAC_MGMT_FRAME && subType == SIR_MAC_MGMT_DISASSOC)
     {
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 11, 0))
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0))
         cfg80211_rx_unprot_mlme_mgmt(pAdapter->dev, pbFrames, nFrameLength);
 #else
         cfg80211_send_unprot_disassoc(pAdapter->dev, pbFrames, nFrameLength);
@@ -5754,7 +5754,7 @@ void hdd_indicateUnprotMgmtFrame( hdd_adapter_t *pAdapter,
     }
     else if (type == SIR_MAC_MGMT_FRAME && subType == SIR_MAC_MGMT_DEAUTH)
     {
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 11, 0))
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0))
         cfg80211_rx_unprot_mlme_mgmt(pAdapter->dev, pbFrames, nFrameLength);
 #else
         cfg80211_send_unprot_deauth(pAdapter->dev, pbFrames, nFrameLength);
