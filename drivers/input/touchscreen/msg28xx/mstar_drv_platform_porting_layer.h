@@ -212,8 +212,8 @@ driver engineer about the value of RST and INT GPIO setting */
 
 #ifdef CONFIG_TP_HAVE_KEY
 #define TOUCH_KEY_MENU (158) /* 229 */
-#define TOUCH_KEY_HOME (172) /* 102 */
-#define TOUCH_KEY_BACK (139)
+#define TOUCH_KEY_HOME (139) /* 102 */
+#define TOUCH_KEY_BACK (172)
 #define TOUCH_KEY_SEARCH (217)
 
 #define MAX_KEY_NUM (4)
