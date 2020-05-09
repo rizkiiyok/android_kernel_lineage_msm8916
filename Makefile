@@ -2,7 +2,7 @@ VERSION = 3
 PATCHLEVEL = 18
 SUBLEVEL = 80
 EXTRAVERSION =
-NAME = END-OF-LIFE
+NAME = TANOSS-OF
 
 # *DOCUMENTATION*
 # To see a list of typical targets execute "make help"
@@ -85,8 +85,6 @@ endif
 # 2) Set KBUILD_OUTPUT
 # Set the environment variable KBUILD_OUTPUT to point to the directory
 # where the output files shall be placed.
-KBUILD_BUILD_HOST=iikziR
-KBUILD_BUILD_USER=Rizkii
 # make
 #
 # The O= assignment takes precedence over the KBUILD_OUTPUT environment
@@ -372,7 +370,6 @@ KBUILD_CPPFLAGS := -D__KERNEL__
 
 KBUILD_CFLAGS   := -Wall -Wundef -Wstrict-prototypes -Wno-trigraphs \
 		   -fno-strict-aliasing -fno-common \
-		   -Werror-implicit-function-declaration \
 		   -Wno-format-security \
 		   -fno-delete-null-pointer-checks \
 		   -std=gnu89
