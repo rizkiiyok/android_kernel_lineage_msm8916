@@ -95,14 +95,10 @@ enum flat_binder_object_flags {
 	 */
 	FLAT_BINDER_FLAG_TXN_SECURITY_CTX = 0x1000,
 };
-
-#ifdef BINDER_IPC_32BIT
-typedef __u32 binder_size_t;
-typedef __u32 binder_uintptr_t;
-#else
+/* only use 64bit binder */
 typedef __u64 binder_size_t;
 typedef __u64 binder_uintptr_t;
-#endif
+
 
 /**
  * struct binder_object_header - header shared by all binder metadata objects.
@@ -234,11 +230,8 @@ struct binder_version {
 };
 
 /* This is the current protocol version. */
-#ifdef BINDER_IPC_32BIT
-#define BINDER_CURRENT_PROTOCOL_VERSION 7
-#else
 #define BINDER_CURRENT_PROTOCOL_VERSION 8
-#endif
+
 
 /*
  * Use with BINDER_GET_NODE_DEBUG_INFO, driver reads ptr, writes to all fields.
