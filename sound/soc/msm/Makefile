@@ -84,7 +84,7 @@ obj-$(CONFIG_SND_SOC_MSM8X16) += snd-soc-msm8x16.o
 # for MSM 8909 sound card driver
 snd-soc-msm8909-objs := msm8x16.o msm-audio-pinctrl.o
 snd-soc-g151-msm8909-objs := msm8x16-g151.o msm-audio-pinctrl.o
-ifeq ($(CONFIG_MACH_HAIER_G151),y)
+ifeq ($(CONFIG_MACH_G151),y)
 obj-$(CONFIG_SND_SOC_MSM8909) += snd-soc-g151-msm8909.o
 else
 obj-$(CONFIG_SND_SOC_MSM8909) += snd-soc-msm8909.o

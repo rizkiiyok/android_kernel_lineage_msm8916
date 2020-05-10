@@ -3,10 +3,10 @@ menu "Haier board selection"
 config MACH_HAIER
  bool "This is my project"
 
-config MACH_HAIER_G101
+config MACH_G101
 	bool "This is my project"
 
-config MACH_HAIER_G151
+config MACH_G151
 	bool "This is my project"
 
 endmenu
