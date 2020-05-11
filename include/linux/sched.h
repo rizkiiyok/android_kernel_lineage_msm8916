@@ -1200,6 +1200,54 @@ struct sched_rt_entity {
 #endif
 };
 
+struct sched_dl_entity {
+	struct rb_node	rb_node;
+
+	/*
+	 * Original scheduling parameters. Copied here from sched_attr
+	 * during sched_setattr(), they will remain the same until
+	 * the next sched_setattr().
+	 */
+	u64 dl_runtime;		/* maximum runtime for each instance	*/
+	u64 dl_deadline;	/* relative deadline of each instance	*/
+	u64 dl_period;		/* separation of two instances (period) */
+	u64 dl_bw;		/* dl_runtime / dl_deadline		*/
+
+	/*
+	 * Actual scheduling parameters. Initialized with the values above,
+	 * they are continously updated during task execution. Note that
+	 * the remaining runtime could be < 0 in case we are in overrun.
+	 */
+	s64 runtime;		/* remaining runtime for this instance	*/
+	u64 deadline;		/* absolute deadline for this instance	*/
+	unsigned int flags;	/* specifying the scheduler behaviour	*/
+
+	/*
+	 * Some bool flags:
+	 *
+	 * @dl_throttled tells if we exhausted the runtime. If so, the
+	 * task has to wait for a replenishment to be performed at the
+	 * next firing of dl_timer.
+	 *
+	 * @dl_new tells if a new instance arrived. If so we must
+	 * start executing it with full runtime and reset its absolute
+	 * deadline;
+	 *
+	 * @dl_boosted tells if we are boosted due to DI. If so we are
+	 * outside bandwidth enforcement mechanism (but only until we
+	 * exit the critical section);
+	 *
+	 * @dl_yielded tells if task gave up the cpu before consuming
+	 * all its available runtime during the last job.
+	 */
+	int dl_throttled, dl_new, dl_boosted, dl_yielded;
+
+	/*
+	 * Bandwidth enforcement timer. Each -deadline task has its
+	 * own bandwidth to be enforced, thus we need one timer per task.
+	 */
+	struct hrtimer dl_timer;
+};
 
 struct rcu_node;
 
@@ -1278,7 +1326,7 @@ struct task_struct {
 #ifdef CONFIG_SMP
 	struct plist_node pushable_tasks;
 #endif
-
+struct sched_dl_entity dl;
 	struct mm_struct *mm, *active_mm;
 #ifdef CONFIG_COMPAT_BRK
 	unsigned brk_randomized:1;
