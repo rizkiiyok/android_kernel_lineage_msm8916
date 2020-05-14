@@ -23,6 +23,8 @@
 
 #include <trace/events/sched.h>
 
+#ifdef CONFIG_RIZKI_PROJECT
+
 #include "smpboot.h"
 
 #ifdef CONFIG_SMP
@@ -797,3 +799,4 @@ void idle_notifier_call_chain(unsigned long val)
 	atomic_notifier_call_chain(&idle_notifier, val, NULL);
 }
 EXPORT_SYMBOL_GPL(idle_notifier_call_chain);
+#endif /* CONFIG_RIZKI_PROJECT */

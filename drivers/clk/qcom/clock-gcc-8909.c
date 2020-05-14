@@ -31,6 +31,8 @@
 
 #include <dt-bindings/clock/msm-clocks-8909.h>
 
+#ifdef CONFIG_RIZKI_PROJECT
+
 #include "clock.h"
 
 enum {
@@ -2899,3 +2901,4 @@ static int __init msm_gcc_mdss_init(void)
 	return platform_driver_register(&msm_clock_gcc_mdss_driver);
 }
 fs_initcall_sync(msm_gcc_mdss_init);
+#endif /* CONFIG_RIZKI_PROJECT */

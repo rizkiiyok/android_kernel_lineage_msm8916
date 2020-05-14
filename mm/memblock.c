@@ -20,6 +20,8 @@
 #include <linux/seq_file.h>
 #include <linux/memblock.h>
 
+#ifdef CONFIG_RIZKI_PROJECT
+
 static struct memblock_region memblock_memory_init_regions[INIT_MEMBLOCK_REGIONS] __initdata_memblock;
 static struct memblock_region memblock_reserved_init_regions[INIT_MEMBLOCK_REGIONS] __initdata_memblock;
 
@@ -1089,3 +1091,4 @@ static int __init memblock_init_debugfs(void)
 __initcall(memblock_init_debugfs);
 
 #endif /* CONFIG_DEBUG_FS */
+#endif /* CONFIG_RIZKI_PROJECT */
