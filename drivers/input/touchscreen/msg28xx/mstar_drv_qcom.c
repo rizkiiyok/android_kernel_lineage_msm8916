@@ -45,6 +45,8 @@
 
 #include "mstar_drv_platform_interface.h"
 
+#ifdef CONFIG_RIZKI_PROJECT
+
 #ifdef CONFIG_ENABLE_REGULATOR_POWER_ON
 #include <linux/regulator/consumer.h>
 #endif /* CONFIG_ENABLE_REGULATOR_POWER_ON */
@@ -164,4 +166,4 @@ static void __exit touch_driver_exit(void)
 module_init(touch_driver_init);
 module_exit(touch_driver_exit);
 MODULE_LICENSE("GPL");
-
+#endif
