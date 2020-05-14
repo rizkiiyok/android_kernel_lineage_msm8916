@@ -11,7 +11,7 @@ config MACH_G151
 
 endmenu
 
-menu "Selection Android Version"
+menu "Android Version Selection"
 
 config RIZKI_PROJECT
  bool "This is my project"
