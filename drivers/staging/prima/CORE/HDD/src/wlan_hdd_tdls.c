@@ -1325,7 +1325,7 @@ static void wlan_hdd_tdls_timers_destroy(tdlsCtx_t *pHddTdlsCtx)
    return NULL if fails to get new mac address
 */
 hddTdlsPeer_t *wlan_hdd_tdls_get_peer(hdd_adapter_t *pAdapter,
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4,14,0))
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,18,0))
                                       const u8 *mac
 #else
                                       u8 *mac
@@ -1395,7 +1395,7 @@ hddTdlsPeer_t *wlan_hdd_tdls_get_peer(hdd_adapter_t *pAdapter,
  */
 
 int wlan_hdd_tdls_set_cap(hdd_adapter_t *pAdapter,
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4,14,0))
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,18,0))
                                    const u8* mac,
 #else
                                    u8* mac,
@@ -1463,7 +1463,7 @@ void wlan_hdd_tdls_set_peer_link_status(hddTdlsPeer_t *curr_peer,
 }
 
 void wlan_hdd_tdls_set_link_status(hdd_adapter_t *pAdapter,
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4,14,0))
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,18,0))
                                    const u8 *mac,
 #else
                                    u8 *mac,
@@ -1652,7 +1652,7 @@ int wlan_hdd_tdls_recv_discovery_resp(hdd_adapter_t *pAdapter, u8 *mac)
 }
 
 int wlan_hdd_tdls_set_peer_caps(hdd_adapter_t *pAdapter,
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4,14,0))
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,18,0))
                                 const u8 *mac,
 #else
                                 u8 *mac,
@@ -1703,7 +1703,7 @@ int wlan_hdd_tdls_set_peer_caps(hdd_adapter_t *pAdapter,
 }
 
 int wlan_hdd_tdls_get_link_establish_params(hdd_adapter_t *pAdapter,
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4,14,0))
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,18,0))
                                             const u8 *mac,
 #else
                                             u8 *mac,
@@ -1753,7 +1753,7 @@ int wlan_hdd_tdls_get_link_establish_params(hdd_adapter_t *pAdapter,
 }
 
 int wlan_hdd_tdls_set_rssi(hdd_adapter_t *pAdapter,
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4,14,0))
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,18,0))
                            const u8 *mac,
 #else
                            u8 *mac,
@@ -1784,7 +1784,7 @@ int wlan_hdd_tdls_set_rssi(hdd_adapter_t *pAdapter,
 }
 
 int wlan_hdd_tdls_set_responder(hdd_adapter_t *pAdapter,
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4,14,0))
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,18,0))
                                 const u8 *mac,
 #else
                                 u8 *mac,
@@ -1814,7 +1814,7 @@ int wlan_hdd_tdls_set_responder(hdd_adapter_t *pAdapter,
 }
 
 int wlan_hdd_tdls_set_signature(hdd_adapter_t *pAdapter,
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4,14,0))
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,18,0))
                                 const u8 *mac,
 #else
                                 u8 *mac,
@@ -2104,7 +2104,7 @@ int wlan_hdd_tdls_set_params(struct net_device *dev, tdls_config_params_t *confi
 }
 
 int wlan_hdd_tdls_set_sta_id(hdd_adapter_t *pAdapter,
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4,14,0))
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,18,0))
                              const u8 *mac,
 #else
                              u8 *mac,
@@ -2134,7 +2134,7 @@ int wlan_hdd_tdls_set_sta_id(hdd_adapter_t *pAdapter,
 }
 
 int wlan_hdd_tdls_set_force_peer(hdd_adapter_t *pAdapter,
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4,14,0))
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,18,0))
                                  const u8 *mac,
 #else
                                  u8 *mac,
@@ -2209,7 +2209,7 @@ hddTdlsPeer_t *wlan_hdd_tdls_find_peer(hdd_adapter_t *pAdapter,
 }
 
 hddTdlsPeer_t *wlan_hdd_tdls_find_all_peer(hdd_context_t *pHddCtx,
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4,14,0))
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,18,0))
                                            const u8 *mac
 #else
                                            u8 *mac
@@ -2244,7 +2244,7 @@ hddTdlsPeer_t *wlan_hdd_tdls_find_all_peer(hdd_context_t *pHddCtx,
 
 
 int wlan_hdd_tdls_reset_peer(hdd_adapter_t *pAdapter,
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4,14,0))
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,18,0))
                              const u8 *mac
 #else
                              u8 *mac
@@ -2695,7 +2695,7 @@ void wlan_hdd_tdls_check_bmps(hdd_adapter_t *pAdapter)
    mac is NULL, this argument is ignored, and check for all the peer list.
  */
 static hddTdlsPeer_t *wlan_hdd_tdls_find_progress_peer(hdd_adapter_t *pAdapter,
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4,14,0))
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,18,0))
                                                        const u8 *mac,
 #else
                                                        u8 *mac,
@@ -2738,7 +2738,7 @@ static hddTdlsPeer_t *wlan_hdd_tdls_find_progress_peer(hdd_adapter_t *pAdapter,
 }
 
 hddTdlsPeer_t *wlan_hdd_tdls_is_progress(hdd_context_t *pHddCtx,
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4,14,0))
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,18,0))
                                          const u8 *mac,
 #else
                                          u8 *mac,
@@ -3429,7 +3429,7 @@ void wlan_hdd_tdls_get_wifi_hal_state(hddTdlsPeer_t *curr_peer,
 }
 
 int wlan_hdd_tdls_get_status(hdd_adapter_t *pAdapter,
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4,14,0))
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,18,0))
                              const tANI_U8* mac,
 #else
                              tANI_U8* mac,

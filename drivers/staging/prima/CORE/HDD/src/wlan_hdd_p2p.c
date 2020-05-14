@@ -1003,13 +1003,13 @@ void hdd_remainChanReadyHandler( hdd_adapter_t *pAdapter )
         // Check for cached action frame
         if ( pRemainChanCtx->action_pkt_buff.frame_length != 0 )
         {
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4,14,0))
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,18,0))
             cfg80211_rx_mgmt(pAdapter->dev->ieee80211_ptr,
                              pRemainChanCtx->action_pkt_buff.freq, 0,
                              pRemainChanCtx->action_pkt_buff.frame_ptr,
                              pRemainChanCtx->action_pkt_buff.frame_length,
                              NL80211_RXMGMT_FLAG_ANSWERED);
-#elif (LINUX_VERSION_CODE >= KERNEL_VERSION(4,14,0))
+#elif (LINUX_VERSION_CODE >= KERNEL_VERSION(3,12,0))
             cfg80211_rx_mgmt(pAdapter->dev->ieee80211_ptr,
                              pRemainChanCtx->action_pkt_buff.freq, 0,
                              pRemainChanCtx->action_pkt_buff.frame_ptr,
@@ -1676,7 +1676,7 @@ err_rem_channel:
     return 0;
 }
 
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4,14,0))
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,14,0))
 int wlan_hdd_mgmt_tx(struct wiphy *wiphy, struct wireless_dev *wdev,
                      struct cfg80211_mgmt_tx_params *params, u64 *cookie)
 #elif (LINUX_VERSION_CODE >= KERNEL_VERSION(3,6,0))
@@ -1713,7 +1713,7 @@ int wlan_hdd_mgmt_tx( struct wiphy *wiphy, struct net_device *dev,
     int ret;
 
     vos_ssr_protect(__func__);
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4,14,0))
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,14,0))
     ret =  __wlan_hdd_mgmt_tx(wiphy, wdev, params->chan, params->offchan,
                               params->wait, params->buf, params->len,
                               params->no_cck, params->dont_wait_for_ack,
@@ -2913,10 +2913,10 @@ void __hdd_indicate_mgmt_frame(hdd_adapter_t *pAdapter,
 
     //Indicate Frame Over Normal Interface
     hddLog( LOG1, FL("Indicate Frame over NL80211 Interface"));
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4,14,0))
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,18,0))
     cfg80211_rx_mgmt(pAdapter->dev->ieee80211_ptr, freq, rxRssi * 100, pbFrames,
                      nFrameLength, NL80211_RXMGMT_FLAG_ANSWERED);
-#elif (LINUX_VERSION_CODE >= KERNEL_VERSION(4,14,0))
+#elif (LINUX_VERSION_CODE >= KERNEL_VERSION(3,12,0))
     cfg80211_rx_mgmt(pAdapter->dev->ieee80211_ptr, freq, rxRssi * 100, pbFrames,
                      nFrameLength, NL80211_RXMGMT_FLAG_ANSWERED, GFP_ATOMIC);
 #elif (LINUX_VERSION_CODE >= KERNEL_VERSION(3,6,0))

@@ -227,7 +227,7 @@ int hdd_set_csr_auth_type( hdd_adapter_t *pAdapter, eCsrAuthType RSNAuthType );
 void hdd_assoc_registerFwdEapolCB(void *pContext);
 
 VOS_STATUS hdd_roamRegisterTDLSSTA( hdd_adapter_t *pAdapter,
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4,18,0))
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,18,0))
                                     const tANI_U8 *peerMac,
 #else
                                     tANI_U8 *peerMac,

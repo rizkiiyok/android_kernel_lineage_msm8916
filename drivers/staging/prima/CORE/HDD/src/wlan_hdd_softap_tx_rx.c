@@ -51,7 +51,7 @@
 #include <halTypes.h>
 #include <net/ieee80211_radiotap.h>
 #include <linux/ratelimit.h>
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,14,0))
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0))
 #include <soc/qcom/subsystem_restart.h>
 #else
 #include <mach/subsystem_restart.h>

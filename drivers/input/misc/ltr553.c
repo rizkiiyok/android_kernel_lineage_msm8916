@@ -437,7 +437,7 @@ static int ltr553_parse_dt(struct device *dev, struct ltr553_data *ltr)
 		dev_err(dev, "read liteon,ps-pulses failed\n");
 		return rc;
 	}
-	if (value > 0x7) {
+	if (value > 0xf) {
 		dev_err(dev, "liteon,ps-pulses out of range\n");
 		return -EINVAL;
 	}
@@ -513,12 +513,12 @@ static int ltr553_parse_dt(struct device *dev, struct ltr553_data *ltr)
 	if (rc)
 		dev_warn(dev, "read liteon,als-equation-0 failed. Drop to default\n");
 
-	rc = of_property_read_u32_array(dp, "liteon,als-equation-0",
+	rc = of_property_read_u32_array(dp, "liteon,als-equation-1",
 			&eqtn_map[1].ch0_coeff_i, 6);
 	if (rc)
 		dev_warn(dev, "read liteon,als-equation-1 failed. Drop to default\n");
 
-	rc = of_property_read_u32_array(dp, "liteon,als-equation-0",
+	rc = of_property_read_u32_array(dp, "liteon,als-equation-2",
 			&eqtn_map[2].ch0_coeff_i, 6);
 	if (rc)
 		dev_warn(dev, "read liteon,als-equation-2 failed. Drop to default\n");
@@ -619,6 +619,13 @@ static int ltr553_init_device(struct ltr553_data *ltr)
 	if (rc) {
 		dev_err(&ltr->i2c->dev, "write %d register failed\n",
 				LTR553_REG_INTERRUPT_PERSIST);
+		return rc;
+	}
+
+	rc = regmap_write(ltr->regmap, LTR553_REG_PS_LED, ltr->ps_led);
+	if (rc) {
+		dev_err(&ltr->i2c->dev, "write %d register failed\n",
+				LTR553_REG_PS_LED);
 		return rc;
 	}
 
@@ -1041,12 +1048,14 @@ static void ltr553_report_work(struct work_struct *work)
 	int rc;
 	unsigned int status;
 	u8 buf[7];
+	int fake_interrupt = 0;
 
 	mutex_lock(&ltr->ops_lock);
 
 	/* avoid fake interrupt */
 	if (!ltr->power_enabled) {
 		dev_dbg(&ltr->i2c->dev, "fake interrupt triggered\n");
+		fake_interrupt = 1;
 		goto exit;
 	}
 
@@ -1084,9 +1093,11 @@ exit:
 	}
 
 	/* clear interrupt */
-	if (regmap_bulk_read(ltr->regmap, LTR553_REG_ALS_DATA_CH1_0,
-			buf, ARRAY_SIZE(buf)))
-		dev_err(&ltr->i2c->dev, "clear interrupt failed\n");
+	if (!fake_interrupt) {
+		if (regmap_bulk_read(ltr->regmap, LTR553_REG_ALS_DATA_CH1_0,
+					buf, ARRAY_SIZE(buf)))
+			dev_err(&ltr->i2c->dev, "clear interrupt failed\n");
+	}
 
 	mutex_unlock(&ltr->ops_lock);
 }
@@ -1143,6 +1154,8 @@ static int ltr553_enable_ps(struct ltr553_data *ltr, int enable)
 		}
 
 		ltr->ps_enabled = true;
+		if (!ltr->als_enabled)
+			enable_irq(ltr->irq);
 
 	} else {
 		/* disable ps_sensor */
@@ -1155,6 +1168,8 @@ static int ltr553_enable_ps(struct ltr553_data *ltr, int enable)
 		}
 
 		ltr->ps_enabled = false;
+		if (!ltr->als_enabled)
+			disable_irq(ltr->irq);
 	}
 exit:
 	return rc;
@@ -1212,6 +1227,8 @@ static int ltr553_enable_als(struct ltr553_data *ltr, int enable)
 		}
 
 		ltr->als_enabled = true;
+		if (!ltr->ps_enabled)
+			enable_irq(ltr->irq);
 	} else {
 		/* disable als sensor */
 		rc = regmap_write(ltr->regmap, LTR553_REG_ALS_CTL,
@@ -1223,6 +1240,8 @@ static int ltr553_enable_als(struct ltr553_data *ltr, int enable)
 		}
 
 		ltr->als_enabled = false;
+		if (!ltr->ps_enabled)
+			disable_irq(ltr->irq);
 	}
 
 exit:
@@ -1960,6 +1979,7 @@ static int ltr553_probe(struct i2c_client *client,
 		/* device wakeup initialization */
 		device_init_wakeup(&client->dev, 1);
 
+		disable_irq(ltr->irq);
 		ltr->workqueue = alloc_workqueue("ltr553_workqueue",
 				WQ_NON_REENTRANT | WQ_FREEZABLE, 0);
 		INIT_WORK(&ltr->report_work, ltr553_report_work);
@@ -2131,13 +2151,13 @@ static int ltr553_suspend(struct device *dev)
 		}
 	} else {
 		/* power off */
-		disable_irq(ltr->irq);
+		if (ltr->als_enabled)
+			disable_irq(ltr->irq);
 		if (ltr->power_enabled) {
 			res = sensor_power_config(dev, power_config,
 					ARRAY_SIZE(power_config), false);
 			if (res) {
 				dev_err(dev, "failed to suspend ltr553\n");
-				enable_irq(ltr->irq);
 				goto exit;
 			}
 		}
@@ -2204,8 +2224,6 @@ static int ltr553_resume(struct device *dev)
 				goto exit_power_off;
 			}
 		}
-
-		enable_irq(ltr->irq);
 	}
 
 	return res;

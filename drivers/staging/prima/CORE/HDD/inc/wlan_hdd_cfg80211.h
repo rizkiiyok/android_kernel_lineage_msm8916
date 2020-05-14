@@ -100,7 +100,7 @@
 #endif
 #endif
 
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 12, 0)) \
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 12, 0)) \
 	|| defined(BACKPORTED_CHANNEL_SWITCH_PRESENT)
 #define CHANNEL_SWITCH_SUPPORTED
 #endif
@@ -1616,7 +1616,7 @@ void hdd_modify_indoor_channel_state_flags(
 
 
 v_U8_t* wlan_hdd_cfg80211_get_ie_ptr(
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4,148,0))
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,18,0))
                                      const v_U8_t *pIes,
 #else
                                      v_U8_t *pIes,
@@ -1646,7 +1646,7 @@ void wlan_hdd_cfg80211_oemdata_callback(void *ctx, const tANI_U16 evType,
 #if !(defined (SUPPORT_WDEV_CFG80211_VENDOR_EVENT_ALLOC))
 static inline struct sk_buff *
 backported_cfg80211_vendor_event_alloc(struct wiphy *wiphy,
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4,148,0))
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,18,0))
     struct wireless_dev *wdev,
 #endif
     int approxlen,
@@ -1707,7 +1707,7 @@ int wlan_hdd_cfg80211_del_station(struct wiphy *wiphy,
                                   struct net_device *dev,
                                   struct station_del_parameters *param);
 #else
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4,146,0)) || defined(WITH_BACKPORTS)
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,16,0)) || defined(WITH_BACKPORTS)
 int wlan_hdd_cfg80211_del_station(struct wiphy *wiphy,
                                   struct net_device *dev, const u8 *mac);
 #else

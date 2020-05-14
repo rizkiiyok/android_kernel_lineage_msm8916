@@ -54,7 +54,7 @@
 #include <linux/vmalloc.h>
 #include <asm/current.h>
 #include <asm/unaligned.h>
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 10, 0)
 #include <linux/aio.h>
 #endif
 
@@ -257,13 +257,13 @@ static inline void inode_unlock(struct inode *inode)
 #endif
 
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 10, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 16, 0)
 static inline int sdfat_remount_syncfs(struct super_block *sb)
 {
 	sync_filesystem(sb);
 	return 0;
 }
-#else /* LINUX_VERSION_CODE < KERNEL_VERSION(4, 10, 0) */
+#else /* LINUX_VERSION_CODE < KERNEL_VERSION(3, 16, 0) */
 static inline int sdfat_remount_syncfs(struct super_block *sb)
 {
 	/*
@@ -275,7 +275,7 @@ static inline int sdfat_remount_syncfs(struct super_block *sb)
 #endif
 
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 10, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
 static inline sector_t __sdfat_bio_sector(struct bio *bio)
 {
 	return bio->bi_iter.bi_sector;
@@ -411,7 +411,7 @@ out_unlocked:
 	sdfat_free_namebuf(nb);
 	return err;
 }
-#else /* LINUX_VERSION_CODE < KERNEL_VERSION(4, 10, 0) */
+#else /* LINUX_VERSION_CODE < KERNEL_VERSION(3, 14, 0) */
 static inline sector_t __sdfat_bio_sector(struct bio *bio)
 {
 	return bio->bi_sector;
@@ -921,7 +921,7 @@ static int sdfat_cmpi(const struct dentry *dentry,
 {
 	return __sdfat_cmpi(dentry, len, str, name);
 }
-#elif LINUX_VERSION_CODE >= KERNEL_VERSION(4, 10, 0)
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
 static int sdfat_cmp(const struct dentry *parent, const struct dentry *dentry,
 		unsigned int len, const char *str, const struct qstr *name)
 {
@@ -977,7 +977,7 @@ static ssize_t sdfat_direct_IO(struct kiocb *iocb,
 	return __sdfat_direct_IO(rw, iocb, inode,
 			(void *)iter, offset, count, 0 /* UNUSED */);
 }
-#elif LINUX_VERSION_CODE >= KERNEL_VERSION(4, 10, 0)
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(3, 16, 0)
 static ssize_t sdfat_direct_IO(int rw, struct kiocb *iocb,
 		struct iov_iter *iter,
 		loff_t offset)
@@ -1023,7 +1023,7 @@ static inline ssize_t __sdfat_blkdev_direct_IO(int unused, struct kiocb *iocb,
 
 	return blockdev_direct_IO(iocb, inode, iter, offset, sdfat_get_block);
 }
-#elif LINUX_VERSION_CODE >= KERNEL_VERSION(4, 10, 0)
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(3, 16, 0)
 static inline ssize_t __sdfat_blkdev_direct_IO(int rw, struct kiocb *iocb,
 		struct inode *inode, void *iov_u, loff_t offset,
 		unsigned long nr_segs)
@@ -2350,9 +2350,9 @@ static int __sdfat_file_fsync(struct file *filp, loff_t start, loff_t end, int d
 static const struct file_operations sdfat_dir_operations = {
 	.llseek     = generic_file_llseek,
 	.read       = generic_read_dir,
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 10, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
 	.iterate    = sdfat_iterate,
-#else /* LINUX_VERSION_CODE < KERNEL_VERSION(4, 10, 0) */
+#else /* LINUX_VERSION_CODE < KERNEL_VERSION(3, 14, 0) */
 	.readdir    = sdfat_readdir,
 #endif
 	.fsync      = sdfat_file_fsync,
@@ -2483,7 +2483,7 @@ static struct dentry *__sdfat_lookup(struct inode *dir, struct dentry *dentry)
 		 * In such case, we reuse an alias instead of new dentry
 		 */
 		if (d_unhashed(alias)) {
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 14, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 10, 0)
 			BUG_ON(alias->d_name.hash != dentry->d_name.hash && alias->d_name.len != dentry->d_name.len);
 #else
 			BUG_ON(alias->d_name.hash_len != dentry->d_name.hash_len);
@@ -3011,12 +3011,12 @@ static const struct file_operations sdfat_file_operations = {
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 1, 0)
 	.read_iter   = generic_file_read_iter,
 	.write_iter  = generic_file_write_iter,
-#elif LINUX_VERSION_CODE >= KERNEL_VERSION(4, 10, 0)
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(3, 16, 0)
 	.read        = new_sync_read,
 	.write       = new_sync_write,
 	.read_iter   = generic_file_read_iter,
 	.write_iter  = generic_file_write_iter,
-#else /* LINUX_VERSION_CODE < KERNEL_VERSION(4, 10, 0) */
+#else /* LINUX_VERSION_CODE < KERNEL_VERSION(3, 16, 0) */
 	.read        = do_sync_read,
 	.write       = do_sync_write,
 	.aio_read    = generic_file_aio_read,

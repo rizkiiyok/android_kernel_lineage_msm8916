@@ -100,7 +100,7 @@ int wlan_hdd_ftm_start(hdd_context_t *pAdapter);
 #include "sapApi.h"
 #include <linux/semaphore.h>
 #include <linux/ctype.h>
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,14,0))
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0))
 #include <soc/qcom/subsystem_restart.h>
 #else
 #include <mach/subsystem_restart.h>
@@ -251,10 +251,10 @@ void hdd_set_wlan_suspend_mode(bool suspend);
 
 v_U16_t hdd_select_queue(struct net_device *dev,
     struct sk_buff *skb
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4,13,0))
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,13,0))
     , void *accel_priv
 #endif
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4,14,0))
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,14,0))
     , select_queue_fallback_t fallback
 #endif
 );
@@ -3209,7 +3209,7 @@ static int hdd_driver_command(hdd_adapter_t *pAdapter,
    hdd_scaninfo_t *pScanInfo = NULL;
    int ret = 0;
    int status;
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4,14,0))
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,14,0))
    struct cfg80211_mgmt_tx_params params;
 #endif
 
@@ -4099,7 +4099,7 @@ static int hdd_driver_command(hdd_adapter_t *pAdapter,
            vos_mem_free(buf);
            buf = NULL;
 
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4,19,0))
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,14,0))
            params.chan = &chan;
            params.offchan = 0;
            params.wait = dwellTime;
@@ -4121,7 +4121,7 @@ static int hdd_driver_command(hdd_adapter_t *pAdapter,
 #endif
                        dwellTime, finalBuf, finalLen,  1,
                        1, &cookie );
-#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(4,19,0)*/
+#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(3,14,0)*/
            vos_mem_free(finalBuf);
        }
        else if (strncmp(command, "GETROAMSCANCHANNELMINTIME", 25) == 0)
@@ -8240,7 +8240,7 @@ static hdd_adapter_t* hdd_alloc_station_adapter( hdd_context_t *pHddCtx, tSirMac
     * cfg80211 initialization and registration....
     */ 
    pWlanDev = alloc_netdev_mq(sizeof( hdd_adapter_t ), name,
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4,17,0))
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,17,0))
                               NET_NAME_UNKNOWN,
 #endif
                               ether_setup, NUM_TX_QUEUES);
@@ -10869,10 +10869,10 @@ static void hdd_set_multicast_list(struct net_device *dev)
   --------------------------------------------------------------------------*/
 v_U16_t hdd_select_queue(struct net_device *dev,
     struct sk_buff *skb
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4,13,0))
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,13,0))
     , void *accel_priv
 #endif
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4,19,0))
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,14,0))
     , select_queue_fallback_t fallback
 #endif
 )
@@ -14383,7 +14383,7 @@ static VOS_STATUS wlan_hdd_framework_restart(hdd_context_t *pHddCtx)
           *
           */
 
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0))
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 11, 0))
          cfg80211_rx_unprot_mlme_mgmt(pAdapterNode->pAdapter->dev, (u_int8_t*)mgmt, len);
 #else
          cfg80211_send_unprot_deauth(pAdapterNode->pAdapter->dev, (u_int8_t*)mgmt, len );  
