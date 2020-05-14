@@ -10,3 +10,19 @@ config MACH_G151
 	bool "This is my project"
 
 endmenu
+
+menu "Selection Android Version"
+
+config RIZKI_PROJECT
+ bool "This is my project"
+
+config NOUGAT
+ bool "This is my project"
+
+config OREO
+ bool "This is my project"
+
+config PIE
+ bool "This is my project"
+
+endmenu
