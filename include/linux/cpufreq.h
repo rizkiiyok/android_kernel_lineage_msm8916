@@ -11,9 +11,7 @@
 #ifndef _LINUX_CPUFREQ_H
 #define _LINUX_CPUFREQ_H
 
-#include <linux/pid_namespace.h>
 #include <linux/cpumask.h>
-#include <linux/cputime.h>
 #include <linux/completion.h>
 #include <linux/kobject.h>
 #include <linux/notifier.h>
@@ -166,7 +164,6 @@ static inline void disable_cpufreq(void) { }
 
 #define CPUFREQ_RELATION_L 0  /* lowest frequency at or above target */
 #define CPUFREQ_RELATION_H 1  /* highest frequency below or at target */
-#define CPUFREQ_RELATION_C 2  /* closest frequency to target */
 
 struct freq_attr {
 	struct attribute attr;
@@ -206,7 +203,6 @@ __ATTR(_name, 0644, show_##_name, store_##_name)
 struct cpufreq_driver {
 	char			name[CPUFREQ_NAME_LEN];
 	u8			flags;
-	void			*driver_data;
 
 	/* needed by all drivers */
 	int	(*init)		(struct cpufreq_policy *policy);
@@ -261,7 +257,6 @@ int cpufreq_register_driver(struct cpufreq_driver *driver_data);
 int cpufreq_unregister_driver(struct cpufreq_driver *driver_data);
 
 const char *cpufreq_get_current_driver(void);
-void *cpufreq_get_driver_data(void);
 
 static inline void cpufreq_verify_within_limits(struct cpufreq_policy *policy,
 		unsigned int min, unsigned int max)
@@ -495,27 +490,8 @@ static inline int cpufreq_generic_exit(struct cpufreq_policy *policy)
 
 #ifdef CONFIG_CPU_FREQ_STAT
 void acct_update_power(struct task_struct *p, cputime_t cputime);
-void cpufreq_task_stats_init(struct task_struct *p);
-void cpufreq_task_stats_alloc(struct task_struct *p);
-void cpufreq_task_stats_free(struct task_struct *p);
-void cpufreq_task_stats_remove_uids(uid_t uid_start, uid_t uid_end);
-int  proc_time_in_state_show(struct seq_file *m, struct pid_namespace *ns,
-	struct pid *pid, struct task_struct *p);
-int  proc_concurrent_active_time_show(struct seq_file *m,
-	struct pid_namespace *ns, struct pid *pid, struct task_struct *p);
-int  proc_concurrent_policy_time_show(struct seq_file *m,
-	struct pid_namespace *ns, struct pid *pid, struct task_struct *p);
-int single_uid_time_in_state_open(struct inode *inode, struct file *file);
 #else
 static inline void acct_update_power(struct task_struct *p, cputime_t cputime) {}
-static inline void cpufreq_task_stats_init(struct task_struct *p);
-static inline void cpufreq_task_stats_alloc(struct task_struct *p) {}
-static inline void cpufreq_task_stats_free(struct task_struct *p) {}
-static inline void cpufreq_task_stats_exit(struct task_struct *p);
-static inline int  proc_time_in_state_show(struct seq_file *m, struct pid_namespace *ns,
-	struct pid *pid, struct task_struct *p);
 #endif
-
-bool StreamStatus(void);
 
 #endif /* _LINUX_CPUFREQ_H */

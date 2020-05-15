@@ -2,7 +2,7 @@
  * Core MDSS framebuffer driver.
  *
  * Copyright (C) 2007 Google Incorporated
- * Copyright (c) 2008-2018, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2008-2017, The Linux Foundation. All rights reserved.
  *
  * This software is licensed under the terms of the GNU General Public
  * License version 2, as published by the Free Software Foundation, and
@@ -53,6 +53,8 @@
 
 #include "mdss_fb.h"
 #include "mdss_mdp_splash_logo.h"
+
+#include "mdss_livedisplay.h"
 
 #ifdef CONFIG_FB_MSM_TRIPLE_BUFFER
 #define MDSS_FB_NUM 3
@@ -723,7 +725,8 @@ static int mdss_fb_create_sysfs(struct msm_fb_data_type *mfd)
 	rc = sysfs_create_group(&mfd->fbi->dev->kobj, &mdss_fb_attr_group);
 	if (rc)
 		pr_err("sysfs group creation failed, rc=%d\n", rc);
-	return rc;
+
+	return mdss_livedisplay_create_sysfs(mfd);
 }
 
 static void mdss_fb_remove_sysfs(struct msm_fb_data_type *mfd)
@@ -1171,12 +1174,6 @@ void mdss_fb_set_backlight(struct msm_fb_data_type *mfd, u32 bkl_lvl)
 	if ((bkl_lvl == 0) && (mfd->doze_mode)) {
 		pr_debug("keeping backlight on with always-on displays\n");
 		mfd->unset_bl_level = 0;
-#ifdef CONFIG_MACH_WT86518
-		if(bkl_lvl==0)
-                    {  pdata = dev_get_platdata(&mfd->pdev->dev);
-                        pdata->set_backlight(pdata, bkl_lvl);  
-                    }	
-#endif
 		return;
 	}
 
@@ -1277,10 +1274,9 @@ static void mdss_fb_stop_disp_thread(struct msm_fb_data_type *mfd)
 {
 	pr_debug("%pS: stop display thread fb%d\n",
 		__builtin_return_address(0), mfd->index);
-	mutex_lock(&mfd->mdp_sync_pt_data.sync_mutex);
+
 	kthread_stop(mfd->disp_thread);
 	mfd->disp_thread = NULL;
-	mutex_unlock(&mfd->mdp_sync_pt_data.sync_mutex);
 }
 
 static void mdss_panel_validate_debugfs_info(struct msm_fb_data_type *mfd)
@@ -2692,6 +2688,29 @@ static int mdss_fb_pan_idle(struct msm_fb_data_type *mfd)
 	return 0;
 }
 
+static int mdss_fb_wait_for_kickoff(struct msm_fb_data_type *mfd)
+{
+	int ret = 0;
+
+	if (!mfd->wait_for_kickoff)
+		return mdss_fb_pan_idle(mfd);
+
+	ret = wait_event_timeout(mfd->kickoff_wait_q,
+			(!atomic_read(&mfd->kickoff_pending) ||
+			 mfd->shutdown_pending),
+			msecs_to_jiffies(WAIT_DISP_OP_TIMEOUT / 2));
+	if (!ret) {
+		pr_err("wait for kickoff timeout %d pending=%d\n",
+				ret, atomic_read(&mfd->kickoff_pending));
+
+	} else if (mfd->shutdown_pending) {
+		pr_debug("Shutdown signalled\n");
+		return -EPERM;
+	}
+
+	return 0;
+}
+
 static int mdss_fb_pan_display_ex(struct fb_info *info,
 		struct mdp_display_commit *disp_commit)
 {
@@ -2732,12 +2751,10 @@ static int mdss_fb_pan_display_ex(struct fb_info *info,
 	mfd->msm_fb_backup.info = *info;
 	mfd->msm_fb_backup.disp_commit = *disp_commit;
 
-	if (mfd->disp_thread) {
-		atomic_inc(&mfd->mdp_sync_pt_data.commit_cnt);
-		atomic_inc(&mfd->commits_pending);
-		atomic_inc(&mfd->kickoff_pending);
-		wake_up_all(&mfd->commit_wait_q);
-	}
+	atomic_inc(&mfd->mdp_sync_pt_data.commit_cnt);
+	atomic_inc(&mfd->commits_pending);
+	atomic_inc(&mfd->kickoff_pending);
+	wake_up_all(&mfd->commit_wait_q);
 	mutex_unlock(&mfd->mdp_sync_pt_data.sync_mutex);
 	if (wait_for_finish)
 		mdss_fb_pan_idle(mfd);
@@ -2880,14 +2897,9 @@ static int __mdss_fb_display_thread(void *data)
 				mfd->index);
 
 	while (1) {
-		ret = wait_event_interruptible(mfd->commit_wait_q,
+		wait_event(mfd->commit_wait_q,
 				(atomic_read(&mfd->commits_pending) ||
 				 kthread_should_stop()));
-
-		if (ret) {
-			pr_info("%s: interrupted", __func__);
-			continue;
-		}
 
 		if (kthread_should_stop())
 			break;
@@ -2897,8 +2909,8 @@ static int __mdss_fb_display_thread(void *data)
 		wake_up_all(&mfd->idle_wait_q);
 	}
 
+	mdss_fb_release_kickoff(mfd);
 	atomic_set(&mfd->commits_pending, 0);
-	atomic_set(&mfd->kickoff_pending, 0);
 	wake_up_all(&mfd->idle_wait_q);
 
 	return ret;
@@ -3384,7 +3396,7 @@ static int __ioctl_wait_idle(struct msm_fb_data_type *mfd, u32 cmd)
 		((cmd == MSMFB_OVERLAY_PREPARE) ||
 		(cmd == MSMFB_BUFFER_SYNC) ||
 		(cmd == MSMFB_OVERLAY_SET))) {
-		ret = mdss_fb_pan_idle(mfd);
+		ret = mdss_fb_wait_for_kickoff(mfd);
 	} else if ((cmd != MSMFB_VSYNC_CTRL) &&
 		(cmd != MSMFB_OVERLAY_VSYNC_CTRL) &&
 		(cmd != MSMFB_ASYNC_BLIT) &&
@@ -3506,7 +3518,7 @@ int mdss_fb_do_ioctl(struct fb_info *info, unsigned int cmd,
 		break;
 	}
 
-	if (ret == -ENOSYS && cmd != 5401)
+	if (ret == -ENOSYS)
 		pr_err("unsupported ioctl (%x)\n", cmd);
 
 exit:

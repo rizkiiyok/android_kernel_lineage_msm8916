@@ -271,22 +271,16 @@ static __always_inline bool steal_account_process_tick(void)
 {
 #ifdef CONFIG_PARAVIRT
 	if (static_key_false(&paravirt_steal_enabled)) {
-		u64 steal;
-		cputime_t steal_ct;
+		u64 steal, st = 0;
 
 		steal = paravirt_steal_clock(smp_processor_id());
 		steal -= this_rq()->prev_steal_time;
 
-		/*
-		 * cputime_t may be less precise than nsecs (eg: if it's
-		 * based on jiffies). Lets cast the result to cputime
-		 * granularity and account the rest on the next rounds.
-		 */
-		steal_ct = nsecs_to_cputime(steal);
-		this_rq()->prev_steal_time += cputime_to_nsecs(steal_ct);
+		st = steal_ticks(steal);
+		this_rq()->prev_steal_time += st * TICK_NSEC;
 
-		account_steal_time(steal_ct);
-		return steal_ct;
+		account_steal_time(st);
+		return st;
 	}
 #endif
 	return false;
@@ -307,12 +301,18 @@ void thread_group_cputime(struct task_struct *tsk, struct task_cputime *times)
 	times->sum_exec_runtime = sig->sum_sched_runtime;
 
 	rcu_read_lock();
-	for_each_thread(tsk, t) {
+	/* make sure we can trust tsk->thread_group list */
+	if (!likely(pid_alive(tsk)))
+		goto out;
+
+	t = tsk;
+	do {
 		task_cputime(t, &utime, &stime);
 		times->utime += utime;
 		times->stime += stime;
 		times->sum_exec_runtime += task_sched_runtime(t);
-	}
+	} while_each_thread(tsk, t);
+out:
 	rcu_read_unlock();
 }
 

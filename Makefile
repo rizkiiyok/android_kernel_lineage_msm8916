@@ -2,7 +2,7 @@ VERSION = 3
 PATCHLEVEL = 10
 SUBLEVEL = 108
 EXTRAVERSION =
-NAME = TANOSS-OF
+NAME = END-OF-LITLE
 
 # *DOCUMENTATION*
 # To see a list of typical targets execute "make help"
@@ -573,7 +573,7 @@ all: vmlinux
 KBUILD_CFLAGS	+= $(call cc-disable-warning,maybe-uninitialized,)
 
 ifdef CONFIG_CC_OPTIMIZE_FOR_SIZE
-KBUILD_CFLAGS	+= -Os
+KBUILD_CFLAGS	+= -Os -pie
 else
 KBUILD_CFLAGS	+= -O2
 endif

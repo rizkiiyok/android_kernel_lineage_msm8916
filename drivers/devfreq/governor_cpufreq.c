@@ -15,7 +15,6 @@
 
 #include <linux/devfreq.h>
 #include <linux/cpu.h>
-#include <linux/cpufreq.h>
 #include <linux/cpumask.h>
 #include <linux/slab.h>
 #include <linux/platform_device.h>
@@ -191,10 +190,8 @@ static int cpufreq_policy_notifier(struct notifier_block *nb,
 
 	case CPUFREQ_REMOVE_POLICY:
 		mutex_lock(&state_lock);
-		if (state[policy->cpu]) {
-			state[policy->cpu]->on = false;
-			update_all_devfreqs();
-		}
+		state[policy->cpu]->on = false;
+		update_all_devfreqs();
 		mutex_unlock(&state_lock);
 		break;
 	}
@@ -244,7 +241,7 @@ static int register_cpufreq(void)
 	mutex_lock(&cpufreq_reg_lock);
 
 	if (cpufreq_cnt)
-		goto cnt_not_zero;
+		goto out;
 
 	get_online_cpus();
 	ret = cpufreq_register_notifier(&cpufreq_policy_nb,
@@ -267,9 +264,9 @@ static int register_cpufreq(void)
 			cpufreq_cpu_put(policy);
 		}
 	}
-out:
 	put_online_cpus();
-cnt_not_zero:
+
+out:
 	if (!ret)
 		cpufreq_cnt++;
 	mutex_unlock(&cpufreq_reg_lock);
@@ -668,6 +665,7 @@ static int __init devfreq_cpufreq_init(void)
 				pr_err("Parsing %s failed!\n", of_child->name);
 			else
 				pr_debug("Parsed %s.\n", of_child->name);
+			of_node_put(of_child);
 		}
 		of_node_put(of_par);
 	} else {

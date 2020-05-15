@@ -19,7 +19,6 @@
 #include <linux/percpu.h>
 #include <linux/profile.h>
 #include <linux/sched.h>
-#include <linux/timer.h>
 #include <linux/module.h>
 #include <linux/irq_work.h>
 #include <linux/posix-timers.h>
@@ -121,9 +120,6 @@ static void tick_do_update_jiffies64(ktime_t now)
 
 		/* Keep the tick_next_period variable up to date */
 		tick_next_period = ktime_add(last_jiffies_update, tick_period);
-	} else {
-		write_sequnlock(&jiffies_lock);
-		return;
 	}
 	write_sequnlock(&jiffies_lock);
 }
@@ -573,11 +569,6 @@ u64 get_cpu_iowait_time_us(int cpu, u64 *last_update_time)
 }
 EXPORT_SYMBOL_GPL(get_cpu_iowait_time_us);
 
-static inline bool local_timer_softirq_pending(void)
-{
-	return local_softirq_pending() & BIT(TIMER_SOFTIRQ);
-}
-
 static ktime_t tick_nohz_stop_sched_tick(struct tick_sched *ts,
 					 ktime_t now, int cpu)
 {
@@ -595,18 +586,8 @@ static ktime_t tick_nohz_stop_sched_tick(struct tick_sched *ts,
 		time_delta = timekeeping_max_deferment();
 	} while (read_seqretry(&jiffies_lock, seq));
 
-	/*
-	 * Keep the periodic tick, when RCU, architecture or irq_work
-	 * requests it.
-	 * Aside of that check whether the local timer softirq is
-	 * pending. If so its a bad idea to call get_next_timer_interrupt()
-	 * because there is an already expired timer, so it will request
-	 * immeditate expiry, which rearms the hardware timer with a
-	 * minimal delta which brings us back to this place
-	 * immediately. Lather, rinse and repeat...
-	 */
-	if (rcu_needs_cpu(cpu, &rcu_delta_jiffies) || arch_needs_cpu(cpu) ||
-	    irq_work_needs_cpu() || local_timer_softirq_pending()) {
+	if (rcu_needs_cpu(cpu, &rcu_delta_jiffies) ||
+	    arch_needs_cpu(cpu) || irq_work_needs_cpu()) {
 		next_jiffies = last_jiffies + 1;
 		delta_jiffies = 1;
 	} else {
@@ -814,11 +795,6 @@ static void __tick_nohz_idle_enter(struct tick_sched *ts)
 
 	now = tick_nohz_start_idle(ts);
 
-#ifdef CONFIG_SMP
-	if (check_pending_deferrable_timers(cpu))
-		raise_softirq_irqoff(TIMER_SOFTIRQ);
-#endif
-
 	if (can_stop_idle_tick(cpu, ts)) {
 		int was_stopped = ts->tick_stopped;
 
@@ -1023,10 +999,6 @@ static void tick_nohz_handler(struct clock_event_device *dev)
 	tick_sched_do_timer(now);
 	tick_sched_handle(ts, regs);
 
-	/* No need to reprogram if we are running tickless  */
-	if (unlikely(ts->tick_stopped))
-		return;
-
 	while (tick_nohz_reprogram(ts, now)) {
 		now = ktime_get();
 		tick_do_update_jiffies64(now);
@@ -1044,8 +1016,11 @@ static void tick_nohz_switch_to_nohz(void)
 	if (!tick_nohz_enabled)
 		return;
 
-	if (tick_switch_to_oneshot(tick_nohz_handler))
+	local_irq_disable();
+	if (tick_switch_to_oneshot(tick_nohz_handler)) {
+		local_irq_enable();
 		return;
+	}
 
 	ts->nohz_mode = NOHZ_MODE_LOWRES;
 
@@ -1063,6 +1038,7 @@ static void tick_nohz_switch_to_nohz(void)
 			break;
 		next = ktime_add(next, tick_period);
 	}
+	local_irq_enable();
 }
 
 /*
@@ -1208,10 +1184,6 @@ static enum hrtimer_restart tick_sched_timer(struct hrtimer *timer)
 		}
 	}
 
-	/* No need to reprogram if we are in idle or full dynticks mode */
-	if (unlikely(ts->tick_stopped))
-		return HRTIMER_NORESTART;
-
 	hrtimer_forward(timer, now, tick_period);
 
 	return HRTIMER_RESTART;
@@ -1321,7 +1293,7 @@ void tick_oneshot_notify(void)
  * Called cyclic from the hrtimer softirq (driven by the timer
  * softirq) allow_nohz signals, that we can switch into low-res nohz
  * mode, because high resolution timers are disabled (either compile
- * or runtime). Called with interrupts disabled.
+ * or runtime).
  */
 int tick_check_oneshot_change(int allow_nohz)
 {

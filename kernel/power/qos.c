@@ -559,8 +559,7 @@ void pm_qos_update_request_timeout(struct pm_qos_request *req, s32 new_value,
 			pm_qos_array[req->pm_qos_class]->constraints,
 			req, PM_QOS_UPDATE_REQ, new_value);
 
-	queue_delayed_work(system_power_efficient_wq,
-			   &req->work, usecs_to_jiffies(timeout_us));
+	schedule_delayed_work(&req->work, usecs_to_jiffies(timeout_us));
 }
 
 /**
@@ -722,12 +721,30 @@ static ssize_t pm_qos_power_write(struct file *filp, const char __user *buf,
 	if (count == sizeof(s32)) {
 		if (copy_from_user(&value, buf, sizeof(s32)))
 			return -EFAULT;
-	} else {
+	} else if (count <= 11) { /* ASCII perhaps? */
+		char ascii_value[11];
+		unsigned long int ulval;
 		int ret;
 
-		ret = kstrtos32_from_user(buf, count, 16, &value);
-		if (ret)
-			return ret;
+		if (copy_from_user(ascii_value, buf, count))
+			return -EFAULT;
+
+		if (count > 10) {
+			if (ascii_value[10] == '\n')
+				ascii_value[10] = '\0';
+			else
+				return -EINVAL;
+		} else {
+			ascii_value[count] = '\0';
+		}
+		ret = kstrtoul(ascii_value, 16, &ulval);
+		if (ret) {
+			pr_debug("%s, 0x%lx, 0x%x\n", ascii_value, ulval, ret);
+			return -EINVAL;
+		}
+		value = (s32)lower_32_bits(ulval);
+	} else {
+		return -EINVAL;
 	}
 
 	req = filp->private_data;

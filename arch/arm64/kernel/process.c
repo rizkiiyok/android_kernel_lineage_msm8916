@@ -111,8 +111,7 @@ void arch_cpu_idle(void)
 	 * tricks
 	 */
 	if (cpuidle_idle_call()) {
-		if (!need_resched())
-			cpu_do_idle();
+		cpu_do_idle();
 		local_irq_enable();
 	}
 }

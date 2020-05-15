@@ -74,7 +74,6 @@
 #include <linux/binfmts.h>
 #include <linux/context_tracking.h>
 #include <linux/cpufreq.h>
-#include <linux/nospec.h>
 
 #include <asm/switch_to.h>
 #include <asm/tlb.h>
@@ -376,19 +375,6 @@ __read_mostly int scheduler_running;
 int sysctl_sched_rt_runtime = 950000;
 
 /*
- * Number of sched_yield calls that result in a thread yielding
- * to itself before a sleep is injected in its next sched_yield call
- * Setting this to -1 will disable adding sleep in sched_yield
- */
-const_debug int sysctl_sched_yield_sleep_threshold = 4;
-
-/*
- * Sleep duration in us used when sched_yield_sleep_threshold
- * is exceeded.
- */
-const_debug unsigned int sysctl_sched_yield_sleep_duration = 50;
-
-/*
  * __task_rq_lock - lock the rq @p resides on.
  */
 static inline struct rq *__task_rq_lock(struct task_struct *p)
@@ -401,12 +387,9 @@ static inline struct rq *__task_rq_lock(struct task_struct *p)
 	for (;;) {
 		rq = task_rq(p);
 		raw_spin_lock(&rq->lock);
-		if (likely(rq == task_rq(p) && !task_on_rq_migrating(p)))
+		if (likely(rq == task_rq(p)))
 			return rq;
 		raw_spin_unlock(&rq->lock);
-
-		while (unlikely(task_on_rq_migrating(p)))
-			cpu_relax();
 	}
 }
 
@@ -423,13 +406,10 @@ static struct rq *task_rq_lock(struct task_struct *p, unsigned long *flags)
 		raw_spin_lock_irqsave(&p->pi_lock, *flags);
 		rq = task_rq(p);
 		raw_spin_lock(&rq->lock);
-		if (likely(rq == task_rq(p) && !task_on_rq_migrating(p)))
+		if (likely(rq == task_rq(p)))
 			return rq;
 		raw_spin_unlock(&rq->lock);
 		raw_spin_unlock_irqrestore(&p->pi_lock, *flags);
-
-		while (unlikely(task_on_rq_migrating(p)))
-			cpu_relax();
 	}
 }
 
@@ -655,39 +635,6 @@ void wake_up_q(struct wake_q_head *head)
 }
 
 /*
- * cmpxchg based fetch_or, macro so it works for different integer types
- */
-#define fetch_or(ptr, val)						\
-({	typeof(*(ptr)) __old, __val = *(ptr);				\
- 	for (;;) {							\
- 		__old = cmpxchg((ptr), __val, __val | (val));		\
- 		if (__old == __val)					\
- 			break;						\
- 		__val = __old;						\
- 	}								\
- 	__old;								\
-})
-
-#ifdef TIF_POLLING_NRFLAG
-/*
- * Atomically set TIF_NEED_RESCHED and test for TIF_POLLING_NRFLAG,
- * this avoids any races wrt polling state changes and thereby avoids
- * spurious IPIs.
- */
-static bool set_nr_and_not_polling(struct task_struct *p)
-{
-	struct thread_info *ti = task_thread_info(p);
-	return !(fetch_or(&ti->flags, _TIF_NEED_RESCHED) & _TIF_POLLING_NRFLAG);
-}
-#else
-static bool set_nr_and_not_polling(struct task_struct *p)
-{
-	set_tsk_need_resched(p);
-	return true;
-}
-#endif
-
-/*
  * resched_curr - mark rq's current task 'to be rescheduled now'.
  *
  * On UP this means the setting of the need_resched flag, on SMP it
@@ -704,14 +651,15 @@ void resched_task(struct task_struct *p)
 	if (test_tsk_need_resched(p))
 		return;
 
+	set_tsk_need_resched(p);
+
 	cpu = task_cpu(p);
-
-	if (cpu == smp_processor_id()) {
-		set_tsk_need_resched(p);
+	if (cpu == smp_processor_id())
 		return;
-	}
 
-	if (set_nr_and_not_polling(p))
+	/* NEED_RESCHED must be visible before we test polling */
+	smp_mb();
+	if (!tsk_is_polling(p))
 		smp_send_reschedule(cpu);
 }
 
@@ -957,8 +905,6 @@ static void set_load_weight(struct task_struct *p)
 		load->inv_weight = WMULT_IDLEPRIO;
 		return;
 	}
-
-	prio = array_index_nospec(prio, 40);
 
 	load->weight = scale_load(prio_to_weight[prio]);
 	load->inv_weight = prio_to_wmult[prio];
@@ -1397,7 +1343,9 @@ static inline u64 scale_exec_time(u64 delta, struct rq *rq)
 	unsigned int cur_freq = rq->cur_freq;
 	int sf;
 
-	if (unlikely(cur_freq > max_possible_freq))
+	if (unlikely(cur_freq > max_possible_freq ||
+		     (cur_freq == rq->max_freq &&
+		      rq->max_freq < rq->max_possible_freq)))
 		cur_freq = rq->max_possible_freq;
 
 	delta = div64_u64(delta  * cur_freq, max_possible_freq);
@@ -2240,87 +2188,51 @@ scale_load_to_freq(u64 load, unsigned int src_freq, unsigned int dst_freq)
 	return div64_u64(load * (u64)src_freq, (u64)dst_freq);
 }
 
-void sched_get_cpus_busy(unsigned long *busy, const struct cpumask *query_cpus)
+unsigned long sched_get_busy(int cpu)
 {
 	unsigned long flags;
-	struct rq *rq;
-	const int cpus = cpumask_weight(query_cpus);
-	u64 load[cpus];
-	unsigned int cur_freq[cpus], max_freq[cpus];
-	int notifier_sent[cpus];
-	int cpu, i = 0;
-	unsigned int window_size;
-
-	if (unlikely(cpus == 0))
-		return;
+	struct rq *rq = cpu_rq(cpu);
+	u64 load;
 
 	/*
 	 * This function could be called in timer context, and the
 	 * current task may have been executing for a long time. Ensure
 	 * that the window stats are current by doing an update.
 	 */
-	local_irq_save(flags);
-	for_each_cpu(cpu, query_cpus)
-		raw_spin_lock(&cpu_rq(cpu)->lock);
+	raw_spin_lock_irqsave(&rq->lock, flags);
+	update_task_ravg(rq->curr, rq, TASK_UPDATE, sched_clock(), 0);
+	load = rq->old_busy_time = rq->prev_runnable_sum;
 
-	window_size = sched_ravg_window;
+	/*
+	 * Scale load in reference to rq->max_possible_freq.
+	 *
+	 * Note that scale_load_to_cpu() scales load in reference to
+	 * rq->max_freq
+	 */
+	load = scale_load_to_cpu(load, cpu);
 
-	for_each_cpu(cpu, query_cpus) {
-		rq = cpu_rq(cpu);
+	if (!rq->notifier_sent) {
+		u64 load_at_cur_freq;
 
-		update_task_ravg(rq->curr, rq, TASK_UPDATE, sched_clock(), 0);
-		load[i] = rq->old_busy_time = rq->prev_runnable_sum;
-		/*
-		 * Scale load in reference to rq->max_possible_freq.
-		 *
-		 * Note that scale_load_to_cpu() scales load in reference to
-		 * rq->max_freq.
-		 */
-		load[i] = scale_load_to_cpu(load[i], cpu);
-
-		notifier_sent[i] = rq->notifier_sent;
+		load_at_cur_freq = scale_load_to_freq(load, rq->max_freq,
+								 rq->cur_freq);
+		if (load_at_cur_freq > sched_ravg_window)
+			load_at_cur_freq = sched_ravg_window;
+		load = scale_load_to_freq(load_at_cur_freq,
+					 rq->cur_freq, rq->max_possible_freq);
+	} else {
+		load = scale_load_to_freq(load, rq->max_freq,
+						 rq->max_possible_freq);
 		rq->notifier_sent = 0;
-		cur_freq[i] = rq->cur_freq;
-		max_freq[i] = rq->max_freq;
-		i++;
 	}
 
-	for_each_cpu(cpu, query_cpus)
-		raw_spin_unlock(&(cpu_rq(cpu))->lock);
-	local_irq_restore(flags);
+	load = div64_u64(load, NSEC_PER_USEC);
 
-	i = 0;
-	for_each_cpu(cpu, query_cpus) {
-		rq = cpu_rq(cpu);
+	raw_spin_unlock_irqrestore(&rq->lock, flags);
 
-		if (!notifier_sent[i]) {
-			load[i] = scale_load_to_freq(load[i], max_freq[i],
-						     cur_freq[i]);
-			if (load[i] > window_size)
-				load[i] = window_size;
-			load[i] = scale_load_to_freq(load[i], cur_freq[i],
-						     rq->max_possible_freq);
-		} else {
-			load[i] = scale_load_to_freq(load[i], max_freq[i],
-						     rq->max_possible_freq);
-		}
+	trace_sched_get_busy(cpu, load);
 
-		busy[i] = div64_u64(load[i], NSEC_PER_USEC);
-
-		trace_sched_get_busy(cpu, busy[i]);
-		i++;
-	}
-}
-
-unsigned long sched_get_busy(int cpu)
-{
-	struct cpumask query_cpu = CPU_MASK_NONE;
-	unsigned long busy;
-
-	cpumask_set_cpu(cpu, &query_cpu);
-	sched_get_cpus_busy(&busy, &query_cpu);
-
-	return busy;
+	return load;
 }
 
 void sched_set_io_is_busy(int val)
@@ -3137,8 +3049,6 @@ static int ttwu_remote(struct task_struct *p, int wake_flags)
 
 	rq = __task_rq_lock(p);
 	if (p->on_rq) {
-		/* check_preempt_curr() may use rq clock */
-		update_rq_clock(rq);
 		ttwu_do_wakeup(rq, p, wake_flags);
 		ret = 1;
 	}
@@ -3528,10 +3438,6 @@ static void __sched_fork(struct task_struct *p)
 	memset(&p->se.statistics, 0, sizeof(p->se.statistics));
 #endif
 
-#ifdef CONFIG_CPU_FREQ_STAT
-	 cpufreq_task_stats_init(p);
-#endif
-
 	INIT_LIST_HEAD(&p->rt.run_list);
 
 #ifdef CONFIG_PREEMPT_NOTIFIERS
@@ -3581,11 +3487,6 @@ void sched_fork(struct task_struct *p)
 	int cpu = get_cpu();
 
 	__sched_fork(p);
-
-#ifdef CONFIG_CPU_FREQ_STAT
-	cpufreq_task_stats_alloc(p);
-#endif
-
 	/*
 	 * We mark the process as running here. This guarantees that
 	 * nobody will actually run it, and a signal or other external
@@ -4101,13 +4002,10 @@ static long calc_load_fold_active(struct rq *this_rq)
 static unsigned long
 calc_load(unsigned long load, unsigned long exp, unsigned long active)
 {
-	unsigned long newload;
-
-	newload = load * exp + active * (FIXED_1 - exp);
-	if (active >= load)
-		newload += FIXED_1-1;
-
-	return newload / FIXED_1;
+	load *= exp;
+	load += active * (FIXED_1 - exp);
+	load += 1UL << (FSHIFT - 1);
+	return load >> FSHIFT;
 }
 
 #ifdef CONFIG_NO_HZ_COMMON
@@ -4636,6 +4534,19 @@ static u64 do_task_delta_exec(struct task_struct *p, struct rq *rq)
 	return ns;
 }
 
+unsigned long long task_delta_exec(struct task_struct *p)
+{
+	unsigned long flags;
+	struct rq *rq;
+	u64 ns = 0;
+
+	rq = task_rq_lock(p, &flags);
+	ns = do_task_delta_exec(p, rq);
+	task_rq_unlock(rq, p, &flags);
+
+	return ns;
+}
+
 /*
  * Return accounted runtime for the task.
  * In case the task is currently running, return the runtime plus current's
@@ -4646,20 +4557,6 @@ unsigned long long task_sched_runtime(struct task_struct *p)
 	unsigned long flags;
 	struct rq *rq;
 	u64 ns = 0;
-
-#if defined(CONFIG_64BIT) && defined(CONFIG_SMP)
-	/*
-	 * 64-bit doesn't need locks to atomically read a 64bit value.
-	 * So we have a optimization chance when the task's delta_exec is 0.
-	 * Reading ->on_cpu is racy, but this is ok.
-	 *
-	 * If we race with it leaving cpu, we'll take a lock. So we're correct.
-	 * If we race with it entering cpu, unaccounted time is 0. This is
-	 * indistinguishable from the read occurring a few cycles earlier.
-	 */
-	if (!p->on_cpu)
-		return p->se.sum_exec_runtime;
-#endif
 
 	rq = task_rq_lock(p, &flags);
 	ns = p->se.sum_exec_runtime + do_task_delta_exec(p, rq);
@@ -4968,7 +4865,6 @@ need_resched:
 	if (likely(prev != next)) {
 		rq->nr_switches++;
 		rq->curr = next;
-		prev->yield_count = 0;
 		++*switch_count;
 
 #ifdef CONFIG_ARCH_WANTS_CTXSW_LOGGING
@@ -4984,10 +4880,8 @@ need_resched:
 		 */
 		cpu = smp_processor_id();
 		rq = cpu_rq(cpu);
-	} else {
-		prev->yield_count++;
+	} else
 		raw_spin_unlock_irq(&rq->lock);
-	}
 
 	post_schedule(rq);
 
@@ -6517,8 +6411,6 @@ SYSCALL_DEFINE0(sched_yield)
 	struct rq *rq = this_rq_lock();
 
 	schedstat_inc(rq, yld_count);
-	if (rq->curr->yield_count == sysctl_sched_yield_sleep_threshold)
-		schedstat_inc(rq, yield_sleep_count);
 	current->sched_class->yield_task(rq);
 
 	/*
@@ -6530,11 +6422,7 @@ SYSCALL_DEFINE0(sched_yield)
 	do_raw_spin_unlock(&rq->lock);
 	sched_preempt_enable_no_resched();
 
-	if (rq->curr->yield_count == sysctl_sched_yield_sleep_threshold)
-		usleep_range(sysctl_sched_yield_sleep_duration,
-				sysctl_sched_yield_sleep_duration + 5);
-	else
-		schedule();
+	schedule();
 
 	return 0;
 }
@@ -6873,7 +6761,7 @@ void show_state_filter(unsigned long state_filter)
 		"  task                        PC stack   pid father\n");
 #endif
 	rcu_read_lock();
-	for_each_process_thread(g, p) {
+	do_each_thread(g, p) {
 		/*
 		 * reset the NMI-timeout, listing all files on a slow
 		 * console might take a lot of time:
@@ -6881,7 +6769,7 @@ void show_state_filter(unsigned long state_filter)
 		touch_nmi_watchdog();
 		if (!state_filter || (p->state & state_filter))
 			sched_show_task(p);
-	}
+	} while_each_thread(g, p);
 
 	touch_all_softlockup_watchdogs();
 
@@ -7053,13 +6941,8 @@ static int __migrate_task(struct task_struct *p, int src_cpu, int dest_cpu)
 	bool moved = false;
 	int ret = 0;
 
-	if (p->flags & PF_KTHREAD) {
-		if (unlikely(!cpu_online(dest_cpu)))
-			return ret;
-	} else {
-		if (unlikely(!cpu_active(dest_cpu)))
-			return ret;
-	}
+	if (unlikely(!cpu_active(dest_cpu)))
+		return ret;
 
 	rq_src = cpu_rq(src_cpu);
 	rq_dest = cpu_rq(dest_cpu);
@@ -7078,9 +6961,9 @@ static int __migrate_task(struct task_struct *p, int src_cpu, int dest_cpu)
 	 * placed properly.
 	 */
 	if (p->on_rq) {
-		dequeue_task(rq_src, p, DEQUEUE_MIGRATING);
+		dequeue_task(rq_src, p, 0);
 		set_task_cpu(p, dest_cpu);
-		enqueue_task(rq_dest, p, ENQUEUE_MIGRATING);
+		enqueue_task(rq_dest, p, 0);
 		check_preempt_curr(rq_dest, p, 0);
 		moved = true;
 	}
@@ -8988,9 +8871,8 @@ match1:
 		;
 	}
 
-	n = ndoms_cur;
 	if (doms_new == NULL) {
-		n = 0;
+		ndoms_cur = 0;
 		doms_new = &fallback_doms;
 		cpumask_andnot(doms_new[0], cpu_active_mask, cpu_isolated_map);
 		WARN_ON_ONCE(dattr_new);
@@ -8998,7 +8880,7 @@ match1:
 
 	/* Build new domains */
 	for (i = 0; i < ndoms_new; i++) {
-		for (j = 0; j < n && !new_topology; j++) {
+		for (j = 0; j < ndoms_cur && !new_topology; j++) {
 			if (cpumask_equal(doms_new[i], doms_cur[j])
 			    && dattrs_equal(dattr_new, i, dattr_cur, j))
 				goto match2;
@@ -9432,7 +9314,7 @@ void normalize_rt_tasks(void)
 	struct rq *rq;
 
 	read_lock_irqsave(&tasklist_lock, flags);
-	for_each_process_thread(g, p) {
+	do_each_thread(g, p) {
 		/*
 		 * Only normalize user tasks:
 		 */
@@ -9463,7 +9345,8 @@ void normalize_rt_tasks(void)
 
 		__task_rq_unlock(rq);
 		raw_spin_unlock(&p->pi_lock);
-	}
+	} while_each_thread(g, p);
+
 	read_unlock_irqrestore(&tasklist_lock, flags);
 }
 
@@ -9659,10 +9542,10 @@ static inline int tg_has_rt_tasks(struct task_group *tg)
 {
 	struct task_struct *g, *p;
 
-	for_each_process_thread(g, p) {
+	do_each_thread(g, p) {
 		if (rt_task(p) && task_rq(p)->rt.tg == tg)
 			return 1;
-	}
+	} while_each_thread(g, p);
 
 	return 0;
 }
@@ -10116,7 +9999,8 @@ static int tg_set_cfs_bandwidth(struct task_group *tg, u64 period, u64 quota)
 	/* restart the period timer (if active) to handle new period expiry */
 	if (runtime_enabled && cfs_b->timer_active) {
 		/* force a reprogram */
-		__start_cfs_bandwidth(cfs_b, true);
+		cfs_b->timer_active = 0;
+		__start_cfs_bandwidth(cfs_b);
 	}
 	raw_spin_unlock_irq(&cfs_b->lock);
 
@@ -10377,6 +10261,7 @@ struct cgroup_subsys cpu_cgroup_subsys = {
 	.css_offline	= cpu_cgroup_css_offline,
 	.can_attach	= cpu_cgroup_can_attach,
 	.attach		= cpu_cgroup_attach,
+	.allow_attach	= subsys_cgroup_allow_attach,
 	.exit		= cpu_cgroup_exit,
 	.subsys_id	= cpu_cgroup_subsys_id,
 	.base_cftypes	= cpu_files,

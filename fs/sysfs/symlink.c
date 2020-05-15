@@ -266,8 +266,7 @@ static int sysfs_get_target_path(struct sysfs_dirent *parent_sd,
 		int slen = strlen(sd->s_name);
 
 		len -= slen;
-		/* Use memcpy to kill warning */
-		memcpy(s + len, sd->s_name, slen);
+		strncpy(s + len, sd->s_name, slen);
 		if (len)
 			s[--len] = '/';
 

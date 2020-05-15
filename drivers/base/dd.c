@@ -342,11 +342,10 @@ probe_failed:
 	driver_sysfs_remove(dev);
 	dev->driver = NULL;
 	dev_set_drvdata(dev, NULL);
-	pm_runtime_reinit(dev);
 
 	if (ret == -EPROBE_DEFER) {
 		/* Driver requested deferred probing */
-		dev_dbg(dev, "Driver %s requests probe deferral\n", drv->name);
+		dev_info(dev, "Driver %s requests probe deferral\n", drv->name);
 		driver_deferred_probe_add(dev);
 		/* Did a trigger occur while probing? Need to re-trigger if yes */
 		if (local_trigger_count != atomic_read(&deferred_trigger_count))
@@ -408,8 +407,6 @@ EXPORT_SYMBOL_GPL(wait_for_device_probe);
  *
  * This function must be called with @dev lock held.  When called for a
  * USB interface, @dev->parent lock must be held as well.
- *
- * If the device has a parent, runtime-resume the parent before driver probing.
  */
 int driver_probe_device(struct device_driver *drv, struct device *dev)
 {
@@ -421,15 +418,9 @@ int driver_probe_device(struct device_driver *drv, struct device *dev)
 	pr_debug("bus: '%s': %s: matched device %s with driver %s\n",
 		 drv->bus->name, __func__, dev_name(dev), drv->name);
 
-	if (dev->parent)
-		pm_runtime_get_sync(dev->parent);
-
 	pm_runtime_barrier(dev);
 	ret = really_probe(dev, drv);
 	pm_request_idle(dev);
-
-	if (dev->parent)
-		pm_runtime_put(dev->parent);
 
 	return ret;
 }
@@ -476,15 +467,8 @@ int device_attach(struct device *dev)
 			ret = 0;
 		}
 	} else {
-
-		if (dev->parent)
-			pm_runtime_get_sync(dev->parent);
-
 		ret = bus_for_each_drv(dev->bus, NULL, dev, __device_attach);
 		pm_request_idle(dev);
-
-		if (dev->parent)
-			pm_runtime_put(dev->parent);
 	}
 out_unlock:
 	device_unlock(dev);
@@ -564,8 +548,6 @@ static void __device_release_driver(struct device *dev)
 		devres_release_all(dev);
 		dev->driver = NULL;
 		dev_set_drvdata(dev, NULL);
-		pm_runtime_reinit(dev);
-
 		klist_remove(&dev->p->knode_driver);
 		if (dev->bus)
 			blocking_notifier_call_chain(&dev->bus->p->bus_notifier,

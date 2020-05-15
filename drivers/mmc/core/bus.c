@@ -127,8 +127,6 @@ static void mmc_bus_shutdown(struct device *dev)
 {
 	struct mmc_driver *drv = to_mmc_driver(dev->driver);
 	struct mmc_card *card = mmc_dev_to_card(dev);
-	struct mmc_host *host = card->host;
-	int ret;
 
 	if (!drv) {
 		pr_debug("%s: %s: drv is NULL\n", dev_name(dev), __func__);
@@ -140,15 +138,8 @@ static void mmc_bus_shutdown(struct device *dev)
 		return;
 	}
 
-	if (dev->driver && drv->shutdown)
+	if (drv->shutdown)
 		drv->shutdown(card);
-
-	if (host->bus_ops->shutdown) {
-		ret = host->bus_ops->shutdown(host);
-		if (ret)
-			pr_warn("%s: error %d during shutdown\n",
-				mmc_hostname(host), ret);
-	}
 }
 
 #ifdef CONFIG_PM_SLEEP
@@ -453,10 +444,6 @@ int mmc_add_card(struct mmc_card *card)
 			       mmc_hostname(card->host), __func__, ret);
 		/* Default timeout is 10 seconds */
 		card->idle_timeout = RUNTIME_SUSPEND_DELAY_MS;
-#ifdef CONFIG_MACH_WT86518
-		if (card->type == MMC_TYPE_SD)
-			card->idle_timeout = 10000000;
-#endif
 	}
 
 	mmc_card_set_present(card);
