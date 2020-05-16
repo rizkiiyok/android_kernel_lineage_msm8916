@@ -31,7 +31,7 @@ dtb-$(CONFIG_ARCH_MSM8974) += msm8974-v1-cdp.dtb \
 ifeq ($(CONFIG_MACH_G101),y)
 dtb-$(CONFIG_ARCH_MSM8909) += msm8909-g101.dtb
 else ifeq ($(CONFIG_MACH_G151),y)
-dtb-$(CONFIG_ARCH_MSM8909) += msm8909-g151.dtb msm8909-g151-1gb.dtb
+dtb-$(CONFIG_ARCH_MSM8909) += msm8909-g151.dtb
 else
 dtb-$(CONFIG_ARCH_MSM8909) += msm8909-sim.dtb \
 	msm8909-rumi.dtb \
