@@ -190,7 +190,7 @@ static int _gTpdFlag = 0;
 /*=============================================================*/
 
 #ifdef CONFIG_TP_HAVE_KEY
-int g_TpVirtualKey[] = {TOUCH_KEY_MENU, TOUCH_KEY_HOME, TOUCH_KEY_BACK, TOUCH_KEY_SEARCH};
+int g_TpVirtualKey[] = {TOUCH_KEY_MENU, TOUCH_KEY_HOME, TOUCH_KEY_BACK};
 
 #ifdef CONFIG_ENABLE_REPORT_KEY_WITH_COORDINATE
 #if defined(CONFIG_TOUCH_DRIVER_RUN_ON_SPRD_PLATFORM) || defined(CONFIG_TOUCH_DRIVER_RUN_ON_QCOM_PLATFORM)
@@ -562,7 +562,6 @@ static ssize_t _DrvPlatformLyrVirtualKeysShow(struct kobject *kobj,
 		       __stringify(EV_KEY) ":" __stringify(KEY_HOMEPAGE) ":50:1330:100:100"
 		       ":" __stringify(EV_KEY) ":" __stringify(KEY_MENU) ":150:1330:100:100"
 		       ":" __stringify(EV_KEY) ":" __stringify(KEY_BACK) ":250:1330:100:100"
-		       ":" __stringify(EV_KEY) ":" __stringify(KEY_SEARCH) ":350:1330:100:100"
 		       "\n");
 }
 
@@ -1329,7 +1328,6 @@ s32 DrvPlatformLyrInputDeviceInitialize(struct i2c_client *pClient)
 	    set_bit(TOUCH_KEY_MENU, g_InputDevice->keybit); //Menu
 	    set_bit(TOUCH_KEY_HOME, g_InputDevice->keybit); //Home
 	    set_bit(TOUCH_KEY_BACK, g_InputDevice->keybit); //Back
-	    set_bit(TOUCH_KEY_SEARCH, g_InputDevice->keybit); //Search
 	#endif //CONFIG_TP_HAVE_KEY
 	*/
 
