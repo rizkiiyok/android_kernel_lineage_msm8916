@@ -3282,45 +3282,6 @@ static void sdhci_set_default_hw_caps(struct sdhci_msm_host *msm_host,
  * return 0, 	mean low  active
  * return -1, 	mean error
  **/
-#ifdef CONFIG_MACH_HUAWEI
-static int sdhci_msm_set_gpio_info(struct sdhci_msm_pltfm_data *pdata)
-{
-	int ret = -1;
-	char prop_name[MAX_PROP_SIZE] = {0};
-	struct device_node *np = NULL;
-
-	if(!pdata)
-	{
-		/*if pdata is NULL,return 0.*/
-		return ret;
-	}
-
-	/*try to get the device node huawei-gpio-info.*/
-	np = of_find_compatible_node(NULL,NULL,"huawei-gpio-info");
-	if(!np)
-	{
-		/*if np is NULL, default is high: return 1.*/
-		pdata->caps2 |= MMC_CAP2_CD_ACTIVE_HIGH;
-		ret = 1;
-		return ret;
-	}
-
-	snprintf(prop_name, MAX_PROP_SIZE,
-			"%s", "huawei,voltage-active-high");
-	if (of_get_property(np, prop_name, NULL))
-	{
-		pdata->caps2 |= MMC_CAP2_CD_ACTIVE_HIGH;
-		ret = 1;
-	}
-	else
-	{
-		pdata->caps2 &= ~MMC_CAP2_CD_ACTIVE_HIGH;
-		ret = 0;
-	}
-
-	return ret;
-}
-#endif
 
 static int sdhci_msm_probe(struct platform_device *pdev)
 {
@@ -3373,14 +3334,6 @@ static int sdhci_msm_probe(struct platform_device *pdev)
 			dev_err(&pdev->dev, "DT parsing error\n");
 			goto pltfm_free;
 		}
-#ifdef CONFIG_MACH_HUAWEI
-		if(sdhci_msm_set_gpio_info(msm_host->pdata) == 1)
-			pr_err("the voltage of gpio is high when insert the sdcard.\n");
-		else if (sdhci_msm_set_gpio_info(msm_host->pdata) == 0)
-			pr_err("the voltage of gpio is low when insert the sdcard.\n");
-		else
-			pr_err("sdhci_msm_set_gpio_info failed.\n");
-#endif
 	} else {
 		dev_err(&pdev->dev, "No device tree node\n");
 		goto pltfm_free;
