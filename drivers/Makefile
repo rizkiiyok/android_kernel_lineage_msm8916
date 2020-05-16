@@ -166,13 +166,4 @@ obj-$(CONFIG_ESOC)		+= esoc/
 obj-$(CONFIG_BIF)		+= bif/
 obj-$(CONFIG_SENSORS)		+= sensors/
 obj-$(CONFIG_SENSORS_SSC)	+= sensors/
-
-# selection android
-ifeq ($(CONFIG_NOUGAT),y)
-obj-$(CONFIG_ANDROID)		+= android-n/
-else ifeq ($(CONFIG_OREO),y)
-obj-$(CONFIG_ANDROID)		+= android-o/
-else ifeq ($(CONFIG_PIE),y)
-obj-$(CONFIG_ANDROID)		+= android-p/
-else
-endif
+obj-$(CONFIG_ANDROID)	+= android/

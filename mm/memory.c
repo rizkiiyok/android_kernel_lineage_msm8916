@@ -69,8 +69,6 @@
 #include <asm/tlbflush.h>
 #include <asm/pgtable.h>
 
-#ifdef CONFIG_RIZKI_PROJECT
-
 #include "internal.h"
 
 #ifdef LAST_NID_NOT_IN_PAGE_FLAGS
@@ -4340,4 +4338,3 @@ void copy_user_huge_page(struct page *dst, struct page *src,
 	}
 }
 #endif /* CONFIG_TRANSPARENT_HUGEPAGE || CONFIG_HUGETLBFS */
-#endif /* CONFIG_RIZKI_PROJECT*/

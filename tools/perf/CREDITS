@@ -1,7 +1,7 @@
 Most of the infrastructure that 'perf' uses here has been reused
 from the Git project, as of version:
 
-    66996ec: Sync with 1.7.2.4
+    66996ec: Sync with 1.6.2.4
 
 Here is an (incomplete!) list of main contributors to those files
 in util/* and elsewhere:
