@@ -144,6 +144,7 @@ arch_get_unmapped_area_topdown(struct file *filp, const unsigned long addr0,
 			return addr;
 	}
 
+#ifdef CONFIG_FIH
 	info.flags = VM_UNMAPPED_AREA_TOPDOWN;
 	info.length = len;
 	info.low_limit = FIRST_USER_ADDRESS;
@@ -167,6 +168,8 @@ arch_get_unmapped_area_topdown(struct file *filp, const unsigned long addr0,
 	}
 
 	return addr;
+
+#endif /* FIH */
 }
 
 void arch_pick_mmap_layout(struct mm_struct *mm)

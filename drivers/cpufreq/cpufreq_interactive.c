@@ -172,6 +172,7 @@ static inline int set_window_helper(
 			 usecs_to_jiffies(tunables->timer_rate));
 }
 
+#ifdef CONFIG_FIH
 static void cpufreq_interactive_timer_resched(unsigned long cpu)
 {
 	struct cpufreq_interactive_cpuinfo *pcpu = &per_cpu(cpuinfo, cpu);
@@ -202,6 +203,7 @@ static void cpufreq_interactive_timer_resched(unsigned long cpu)
 
 	spin_unlock_irqrestore(&pcpu->load_lock, flags);
 }
+#endif /* FIH */
 
 /* The caller shall take enable_sem write semaphore to avoid any timer race.
  * The cpu_timer and cpu_slack_timer must be deactivated when calling this

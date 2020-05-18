@@ -1126,7 +1126,7 @@ void __init sanity_check_meminfo(void)
 		else
 			size_limit = vmalloc_limit - reg->base;
 
-
+#ifdef CONFIG_FIH
 		if (!IS_ENABLED(CONFIG_HIGHMEM) || cache_is_vipt_aliasing()) {
 
 			if (highmem) {
@@ -1146,6 +1146,7 @@ void __init sanity_check_meminfo(void)
 				block_end = vmalloc_limit;
 			}
 		}
+#endif /* FIH */
 
 		if (!highmem) {
 			if (block_end > arm_lowmem_limit) {
