@@ -21,7 +21,7 @@
 #include "../cci/msm_cci.h"
 #include <linux/debugfs.h>
 
-#define FLASH_NAME "camera-led-flash", "camera-led-flash-front"
+#define FLASH_NAME "camera-led-flash"
 #define CAM_FLASH_PINCTRL_STATE_SLEEP "cam_flash_suspend"
 #define CAM_FLASH_PINCTRL_STATE_DEFAULT "cam_flash_default"
 /*#define CONFIG_MSMB_CAMERA_DEBUG*/

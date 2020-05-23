@@ -28,7 +28,7 @@ static struct v4l2_file_operations msm_flash_v4l2_subdev_fops;
 static struct led_trigger *torch_trigger;
 
 static const struct of_device_id msm_flash_dt_match[] = {
-	{.compatible = "qcom,camera-flash", " qcom,camera-flash-front", .data = NULL},
+	{.compatible = "qcom,camera-flash", .data = NULL},
 	{}
 };
 
@@ -1032,7 +1032,6 @@ static struct platform_driver msm_flash_platform_driver = {
 	.probe = msm_flash_platform_probe,
 	.driver = {
 		.name = "qcom,camera-flash",
-		.name = " qcom,camera-flash-front",
 		.owner = THIS_MODULE,
 		.of_match_table = msm_flash_dt_match,
 	},
