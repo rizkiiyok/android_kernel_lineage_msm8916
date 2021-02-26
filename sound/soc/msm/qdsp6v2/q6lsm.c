@@ -1860,6 +1860,14 @@ static int get_cal_type_index(int32_t cal_type)
 	int ret = -EINVAL;
 
 	switch (cal_type) {
+#ifndef CONFIG_ARCH_MSM8909
+	case LSM_CUST_TOPOLOGY_CAL_TYPE:
+		ret = LSM_CUSTOM_TOP_IDX;
+		break;
+	case LSM_TOPOLOGY_CAL_TYPE:
+		ret = LSM_TOP_IDX;
+		break;
+#endif
 	case LSM_CAL_TYPE:
 		ret = LSM_CAL_IDX;
 		break;
@@ -1969,6 +1977,18 @@ static int q6lsm_init_cal_data(void)
 {
 	int ret = 0;
 	struct cal_type_info	cal_type_info[] = {
+#ifndef CONFIG_ARCH_MSM8909
+		{{LSM_CUST_TOPOLOGY_CAL_TYPE,
+		{q6lsm_alloc_cal, q6lsm_dealloc_cal, NULL,
+		q6lsm_set_cal, NULL, NULL} },
+		{NULL, NULL, cal_utils_match_buf_num} },
+
+		{{LSM_TOPOLOGY_CAL_TYPE,
+		{NULL, NULL, NULL,
+		q6lsm_set_cal, NULL, NULL} },
+		{NULL, NULL, cal_utils_match_buf_num} },
+
+#endif
 		{{LSM_CAL_TYPE,
 		{q6lsm_alloc_cal, q6lsm_dealloc_cal, NULL,
 		q6lsm_set_cal, NULL, NULL} },

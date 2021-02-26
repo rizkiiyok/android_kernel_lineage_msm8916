@@ -755,14 +755,12 @@ static int mdss_dsi_unblank(struct mdss_panel_data *pdata)
 		ctrl_pdata->ctrl_state |= CTRL_STATE_PANEL_INIT;
 	}
 
-#ifdef CONFIG_FIH
 	if ((pdata->panel_info.type == MIPI_CMD_PANEL) &&
 		mipi->vsync_enable && mipi->hw_vsync_mode) {
 		mdss_dsi_set_tear_on(ctrl_pdata);
 		if (mdss_dsi_is_te_based_esd(ctrl_pdata))
 			enable_irq(gpio_to_irq(ctrl_pdata->disp_te_gpio));
 	}
-#endif /* FIH */
 
 #ifndef CONFIG_FB_MSM_MDSS_MDP3
 	mdss_livedisplay_update(pdata->panel_info.livedisplay,

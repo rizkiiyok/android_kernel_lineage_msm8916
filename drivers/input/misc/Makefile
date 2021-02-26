@@ -35,7 +35,7 @@ obj-$(CONFIG_INPUT_IMS_PCU)		+= ims-pcu.o
 obj-$(CONFIG_INPUT_IXP4XX_BEEPER)	+= ixp4xx-beeper.o
 obj-$(CONFIG_INPUT_KEYCHORD)		+= keychord.o
 obj-$(CONFIG_INPUT_KEYSPAN_REMOTE)	+= keyspan_remote.o
-obj-$(CONFIG_SENSORS_KIONIX_ACCEL)	+= kionix_accel.o
+obj-$(CONFIG_INPUT_KIONIX_ACCEL)	+= kionix_accel_hy.o
 obj-$(CONFIG_INPUT_KXTJ9)		+= kxtj9.o
 obj-$(CONFIG_INPUT_KXTJ9_HQ)		+= kxtj9_hq.o
 obj-$(CONFIG_INPUT_LSM6DX0)		+= lsm6dx0.o
@@ -85,6 +85,7 @@ obj-$(CONFIG_SENSORS_MPU6880)		+= mpu6880.o
 obj-$(CONFIG_SENSORS_PA12200001)	+= pa12200001.o
 obj-$(CONFIG_SENSORS_YL_HALL)		+= coolpad_hall.o
 obj-$(CONFIG_SENSORS_YL_PARAMS)		+= yl_sensor_params.o
+obj-$(CONFIG_SENSORS_KIONIX_ACCEL)	+= kionix_hy.o
 
 obj-$(CONFIG_SENSORS_BMA2X2)	+= bma2x2.o
 obj-$(CONFIG_SENSORS_LTR553)	+= ltr553.o

@@ -84,9 +84,6 @@ lib-$(CONFIG_DECOMPRESS_BZIP2) += decompress_bunzip2.o
 lib-$(CONFIG_DECOMPRESS_LZMA) += decompress_unlzma.o
 lib-$(CONFIG_DECOMPRESS_XZ) += decompress_unxz.o
 lib-$(CONFIG_DECOMPRESS_LZO) += decompress_unlzo.o
-obj-$(CONFIG_LZ4_COMPRESS) += lz4/
-obj-$(CONFIG_LZ4HC_COMPRESS) += lz4/
-obj-$(CONFIG_LZ4_DECOMPRESS) += lz4/
 
 obj-$(CONFIG_TEXTSEARCH) += textsearch.o
 obj-$(CONFIG_TEXTSEARCH_KMP) += ts_kmp.o

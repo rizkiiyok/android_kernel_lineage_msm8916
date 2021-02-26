@@ -3276,13 +3276,6 @@ static void sdhci_set_default_hw_caps(struct sdhci_msm_host *msm_host,
 	writel_relaxed(caps, host->ioaddr + CORE_VENDOR_SPEC_CAPABILITIES0);
 }
 
-/*
- * To get the gpio infor when SD plugged in, based on the device tree info of SD
- * return 1, 	mean high active and set MMC_CAP2_CD_ACTIVE_HIGH bit
- * return 0, 	mean low  active
- * return -1, 	mean error
- **/
-
 static int sdhci_msm_probe(struct platform_device *pdev)
 {
 	struct sdhci_host *host;

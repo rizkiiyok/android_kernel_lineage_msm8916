@@ -852,7 +852,7 @@ config SENSORS_CAPELLA_CM36283
 	  To compile this driver as a module, choose M here: the
 	  module will be called CM36283.
 
-config SENSORS_KIONIX_ACCEL
+config INPUT_KIONIX_ACCEL
 	tristate "KIONIX_ACCEL"
 	depends on I2C=y
 	help
@@ -1001,4 +1001,27 @@ config SENSORS_PA12200001
 	  If you say yes here you get support for TXC's PA12200001 proximity
 	  and light sensor.
 
-endif # if INPUT_MISC
+config SENSORS_YL_HALL
+	tristate "Yulong/Coolpad Hall sensor support"
+	default n
+	help
+	  If you say yes here you get support for Yulong/Coolpad's Hall sensor.
+
+config SENSORS_YL_PARAMS
+	tristate "Yulong sensor parameter support"
+	default n
+	help
+	  If you say yes here you get support for Yulong/Coolpad's sensor
+	  calibration parameter driver.
+
+config SENSORS_KIONIX_ACCEL
+	tristate "KIONIX_ACCEL"
+	depends on I2C=y
+	help
+	  If you say yes here you get support for the Kionix digital 3-axis
+	  accelerometer.
+	  This driver can also be built as a module. If so, the module will be
+	  called kionix_accel.
+
+endif
+

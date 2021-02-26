@@ -2096,7 +2096,6 @@ struct mempolicy *__mpol_dup(struct mempolicy *old)
 /* Slow path of a mempolicy comparison */
 bool __mpol_equal(struct mempolicy *a, struct mempolicy *b)
 {
-	#ifdef CONFIG_FIH
 	if (!a || !b)
 		return false;
 	if (a->mode != b->mode)
@@ -2118,7 +2117,6 @@ bool __mpol_equal(struct mempolicy *a, struct mempolicy *b)
 		BUG();
 		return false;
 	}
-	#endif /* FIH */
 }
 
 /*

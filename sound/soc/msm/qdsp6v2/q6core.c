@@ -871,6 +871,11 @@ static int get_cal_type_index(int32_t cal_type)
 	case AUDIO_CORE_METAINFO_CAL_TYPE:
 		ret = META_CAL;
 		break;
+#ifndef CONFIG_ARCH_MSM8909
+	case CORE_CUSTOM_TOPOLOGIES_CAL_TYPE:
+		ret = CUST_TOP_CAL;
+		break;
+#endif
 	default:
 		pr_err("%s: invalid cal type %d!\n", __func__, cal_type);
 	}
@@ -971,6 +976,12 @@ static int q6core_init_cal_data(void)
 {
 	int ret = 0;
 	struct cal_type_info    cal_type_info[] = {
+#ifdef CONFIG_ARCH_MSM8909
+		{{AUDIO_CORE_METAINFO_CAL_TYPE,
+		{q6core_alloc_cal, q6core_dealloc_cal, NULL,
+		q6core_set_cal, NULL, NULL} },
+		{NULL, NULL, cal_utils_match_buf_num} }
+#else
 		{{AUDIO_CORE_METAINFO_CAL_TYPE,
 		{q6core_alloc_cal, q6core_dealloc_cal, NULL,
 		q6core_set_cal, NULL, NULL} },
@@ -980,6 +991,7 @@ static int q6core_init_cal_data(void)
 		{q6core_alloc_cal, q6core_dealloc_cal, NULL,
 		q6core_set_cal, NULL, NULL} },
 		{NULL, NULL, cal_utils_match_buf_num} }
+#endif
 	};
 	pr_debug("%s:\n", __func__);
 

@@ -26,7 +26,7 @@
 #include <linux/workqueue.h>
 #include <linux/module.h>
 #include <linux/slab.h>
-#include "kionix_accel.h"
+#include <linux/input/kionix_accel.h>
 #include <linux/version.h>
 #include <linux/proc_fs.h>
 #include <linux/regulator/consumer.h>

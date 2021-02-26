@@ -58,6 +58,11 @@ size_t get_cal_info_size(int32_t cal_type)
 		size = sizeof(struct audio_cal_info_adm_top);
 		break;
 	case ADM_CUST_TOPOLOGY_CAL_TYPE:
+#ifndef CONFIG_ARCH_MSM8909
+	case CORE_CUSTOM_TOPOLOGIES_CAL_TYPE:
+		size = 0;
+		break;
+#endif
 	case ADM_AUDPROC_CAL_TYPE:
 		size = sizeof(struct audio_cal_info_audproc);
 		break;
@@ -94,6 +99,14 @@ size_t get_cal_info_size(int32_t cal_type)
 	case AFE_SIDETONE_CAL_TYPE:
 		size = sizeof(struct audio_cal_info_sidetone);
 		break;
+#ifndef CONFIG_ARCH_MSM8909
+	case LSM_CUST_TOPOLOGY_CAL_TYPE:
+		size = 0;
+		break;
+	case LSM_TOPOLOGY_CAL_TYPE:
+		size = sizeof(struct audio_cal_info_lsm_top);
+		break;
+#endif
 	case LSM_CAL_TYPE:
 		size = sizeof(struct audio_cal_info_lsm);
 		break;
@@ -166,6 +179,11 @@ size_t get_user_cal_type_size(int32_t cal_type)
 		size = sizeof(struct audio_cal_type_adm_top);
 		break;
 	case ADM_CUST_TOPOLOGY_CAL_TYPE:
+#ifndef CONFIG_ARCH_MSM8909
+	case CORE_CUSTOM_TOPOLOGIES_CAL_TYPE:
+		size = sizeof(struct audio_cal_type_basic);
+		break;
+#endif
 	case ADM_AUDPROC_CAL_TYPE:
 		size = sizeof(struct audio_cal_type_audproc);
 		break;
@@ -202,6 +220,14 @@ size_t get_user_cal_type_size(int32_t cal_type)
 	case AFE_SIDETONE_CAL_TYPE:
 		size = sizeof(struct audio_cal_type_sidetone);
 		break;
+#ifndef CONFIG_ARCH_MSM8909
+	case LSM_CUST_TOPOLOGY_CAL_TYPE:
+		size = sizeof(struct audio_cal_type_basic);
+		break;
+	case LSM_TOPOLOGY_CAL_TYPE:
+		size = sizeof(struct audio_cal_type_lsm_top);
+		break;
+#endif
 	case LSM_CAL_TYPE:
 		size = sizeof(struct audio_cal_type_lsm);
 		break;

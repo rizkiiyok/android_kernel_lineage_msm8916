@@ -1688,9 +1688,6 @@ config HZ
 	default 500 if HZ_500
 	default 1000
 
-config FIH
-	bool "Fih"
-
 config SCHED_HRTICK
 	def_bool HIGH_RES_TIMERS
 
